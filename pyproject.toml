@@ -17,10 +17,13 @@ dependencies = [
     "apscheduler",
     "sqlalchemy>=2.0",
     "python-dotenv",
+    "dill",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-timeout"]
+billing = ["stripe"]        # lazy-imported; offline tests use an injected fake
+llm = ["litellm"]           # optional prose polish in ResearchExplanationAgent
 
 [project.scripts]
 unlockaid = "unlockaid.cli:main"
@@ -42,6 +45,6 @@ markers = [
     "asset: proves mandated-asset integration per AGENT_BUILD_PLAYBOOK",
 ]
 
-[tool.unlockedaid]
+[tool.unlockaid]
 qlib_path = "/root/repos/qlib"
 dsa_path = "/root/repos/daily_stock_analysis"

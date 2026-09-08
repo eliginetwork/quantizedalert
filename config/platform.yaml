@@ -1,0 +1,10 @@
+qlib_provider_uri: ~/.qlib/qlib_data/cn_data
+qlib_region: cn
+dsa_path: /root/repos/daily_stock_analysis
+qlib_path: /root/repos/qlib
+db_path: data/unlockaid.db
+artifact_dir: data/artifacts
+workspace_dir: config/workspaces
+data_dir: data
+train_n_jobs: 8
+num_boost_round: 200

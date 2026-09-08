@@ -63,8 +63,8 @@ N/A — the deliverable is a web platform + CLI, not generated apps.
 |---|---|---|---|
 | D1 | Data acquisition/refresh + freshness/staleness/anomaly detection | A | `src/unlockaid/data/` |
 | D2 | Qlib research runner (factor handler → train → experiment record) | B | `src/unlockaid/engine/qlib_engine.py`, `research/` |
-| D3 | Validation: in/out-of-sample, walk-forward, drawdown, turnover, cost, stability, sensitivity, overfit flags | C | `src/unlockaid/validation/` |
-| D4 | Model registry (datasets/factors/models/hyperparams/experiments/validation lineage) | D | `src/unlockaid/registry/` |
+| D3 | Validation: in/out-of-sample, walk-forward, drawdown, turnover, cost, stability, sensitivity, overfit flags | C | `research/runner.py` (gates+WF) + `agents/research.py` (`OverfitAuditAgent`) |
+| D4 | Model registry (datasets/factors/models/hyperparams/experiments/validation lineage) | D | `store.py` (models table + qlib `experiment_ref` lineage) |
 | D5 | Deployment: schedule validated models for daily inference | E | `src/unlockaid/deploy/` |
 | D6 | Daily analysis: predictions → rankings → portfolio analytics → risk → signal changes | F | `src/unlockaid/analysis/` |
 | D7 | Alert intelligence: scoring, ranking, quiet hours, thresholds, per-customer channels via **DSA senders** | G | `src/unlockaid/alerts/` |
