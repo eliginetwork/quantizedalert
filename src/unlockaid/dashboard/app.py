@@ -6,11 +6,22 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 
 from unlockaid.config import PlatformConfig, WorkspaceConfig
 from unlockaid.store import Store
+
+
+def _require_token(authorization: str | None = Header(default=None),
+                   x_api_key: str | None = Header(default=None)) -> None:
+    """Require UNLOCKAID_DASHBOARD_TOKEN if it is set. If unset, allow (dev mode)."""
+    expected = os.environ.get("UNLOCKAID_DASHBOARD_TOKEN", "")
+    if not expected:
+        return  # dev mode: no token required
+    provided = x_api_key or (authorization.removeprefix("Bearer ").strip() if authorization else "")
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="invalid or missing API token")
 
 _TEMPLATE = """<!doctype html>
 <html><head><meta charset="utf-8"><title>UnlockAid — {{ name }}</title>
@@ -75,12 +86,22 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
 
     def workspace_ids() -> list[str]:
         p = platform_cfg.workspace_dir
-        return sorted(f[:-5] for f in os.listdir(p) if f.endswith(".yaml")) if os.path.isdir(p) else []
+        if not os.path.isdir(p):
+            return []
+        res = set()
+        for f in os.listdir(p):
+            if f.endswith(".yaml"):
+                res.add(f[:-5])
+            elif f.endswith(".yaml.example"):
+                res.add(f[:-13])
+        return sorted(res)
 
     def render(ws: str) -> str:
         try:
-            wc = WorkspaceConfig.load(os.path.join(platform_cfg.workspace_dir,
-                                                   f"{ws}.yaml"))
+            path = os.path.join(platform_cfg.workspace_dir, f"{ws}.yaml")
+            if not os.path.exists(path):
+                path = os.path.join(platform_cfg.workspace_dir, f"{ws}.yaml.example")
+            wc = WorkspaceConfig.load(path)
         except (FileNotFoundError, NotADirectoryError):
             wc = None
         run = store.latest_daily_run(ws)
@@ -169,18 +190,18 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
     def workspace_page(ws: str):
         return render(ws)
 
-    @app.get("/api/{ws}/summary")
+    @app.get("/api/{ws}/summary", dependencies=[Depends(_require_token)])
     def summary(ws: str):
         run = store.latest_daily_run(ws)
         if not run:
             raise HTTPException(404, "no runs for workspace")
         return json.loads(run["payload"])
 
-    @app.get("/api/{ws}/alerts")
+    @app.get("/api/{ws}/alerts", dependencies=[Depends(_require_token)])
     def alerts(ws: str):
         return store.recent_alerts(ws, since_hours=72)
 
-    @app.get("/api/{ws}/predictions")
+    @app.get("/api/{ws}/predictions", dependencies=[Depends(_require_token)])
     def predictions(ws: str, asof: str = ""):
         if not asof:
             run = store.latest_daily_run(ws)
@@ -189,11 +210,11 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             asof = run["asof"]
         return store.get_predictions(ws, asof)
 
-    @app.get("/api/{ws}/scorecard")
+    @app.get("/api/{ws}/scorecard", dependencies=[Depends(_require_token)])
     def scorecard(ws: str):
         return store.scorecard(ws)
 
-    @app.post("/api/{ws}/alerts/{event_id}/view")
+    @app.post("/api/{ws}/alerts/{event_id}/view", dependencies=[Depends(_require_token)])
     def mark_viewed(ws: str, event_id: str):
         store.mark_alert_viewed(event_id)
         return {"ok": True}

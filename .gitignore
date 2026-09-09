@@ -12,3 +12,7 @@ data/backups/
 *.egg-info/
 .coverage
 repos/
+
+# Workspaces with PII (see config/workspaces/README.md)
+config/workspaces/*.yaml
+!config/workspaces/*.yaml.example
