@@ -9,15 +9,12 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Optional
 
 import numpy as np
-import pandas as pd
 
 from unlockaid.config import WorkspaceConfig
 from unlockaid.engine.qlib_engine import QlibEngine
-from unlockaid.schemas import (BacktestReport, ModelRecord, ModelStatus,
-                               ValidationResult, new_id)
+from unlockaid.schemas import BacktestReport, ModelRecord, ModelStatus, ValidationResult, new_id
 from unlockaid.store import Store, utcnow
 
 logger = logging.getLogger("unlockaid.research")
@@ -104,7 +101,7 @@ class ResearchRunner:
 
     # ---------- validation (Layer C) ----------
     def validate(self, cfg: WorkspaceConfig, model_id: str,
-                 gates: Optional[dict[str, float]] = None,
+                 gates: dict[str, float] | None = None,
                  meter=None) -> ValidationResult:
         """Gates on OOS IC/IR/DD/turnover + walk-forward stability + overfit flags."""
         gates = {**DEFAULT_GATES, **(gates or {})}

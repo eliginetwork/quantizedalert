@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from unlockaid import __version__
-from unlockaid.config import PlatformConfig, WorkspaceConfig, AlertPrefs
+from unlockaid.config import AlertPrefs, PlatformConfig, WorkspaceConfig
 from unlockaid.engine.qlib_engine import QlibEngine
 from unlockaid.store import Store
 
@@ -166,8 +166,8 @@ def cmd_research(args):
 
 def cmd_validate(args):
     pcfg, store, engine = _ctx()
-    from unlockaid.research.runner import ResearchRunner
     from unlockaid.agents.research import OverfitAuditAgent
+    from unlockaid.research.runner import ResearchRunner
     cfg = _load_ws(pcfg, args.workspace)
     runner = ResearchRunner(engine, store, pcfg.artifact_dir)
     if not runner.run_result(args.model):
@@ -202,8 +202,8 @@ def cmd_deploy(args):
 
 def cmd_daily(args):
     pcfg, store, engine = _ctx()
-    from unlockaid.analysis.daily import DailyPipeline
     from unlockaid.alerts.intelligence import AlertIntelligence
+    from unlockaid.analysis.daily import DailyPipeline
     cfg = _load_ws(pcfg, args.workspace)
     cap_alert_budget(store, cfg)
     alerter = _alerter(pcfg)
@@ -239,12 +239,13 @@ def cmd_alert_test(args):
 def cmd_serve(args):
     pcfg, store, _ = _ctx()
     import uvicorn
+
     from unlockaid.dashboard.app import build_app
     app = build_app(pcfg, store)
     if args.cron:
-        from unlockaid.deploy.scheduler import DeployScheduler
-        from unlockaid.analysis.daily import DailyPipeline
         from unlockaid.alerts.intelligence import AlertIntelligence
+        from unlockaid.analysis.daily import DailyPipeline
+        from unlockaid.deploy.scheduler import DeployScheduler
         sched_store = store
         sch = DeployScheduler(
             sched_store,
@@ -268,7 +269,7 @@ def cmd_scorecard(args):
 
 def cmd_economics(args):
     pcfg, store, _ = _ctx()
-    from unlockaid.commercial.plans import contribution_margin, PLANS
+    from unlockaid.commercial.plans import PLANS, contribution_margin
     cust = store.get_customer(args.workspace)
     plan = (args.plan or (cust or {}).get("plan", "free"))
     print(json.dumps(contribution_margin(store, args.workspace, plan), indent=2))
@@ -291,9 +292,9 @@ def cmd_e2e(args):
     """The full MVP loop (§12): universe → train → backtest → validate →
     register → deploy → daily → alert → dashboard payload."""
     pcfg, store, engine = _ctx()
-    from unlockaid.research.runner import ResearchRunner
-    from unlockaid.analysis.daily import DailyPipeline
     from unlockaid.alerts.intelligence import AlertIntelligence
+    from unlockaid.analysis.daily import DailyPipeline
+    from unlockaid.research.runner import ResearchRunner
     ws = args.workspace
     cfg = _load_ws(pcfg, ws)
     cap_alert_budget(store, cfg)
@@ -346,9 +347,10 @@ def cmd_experiments(args):
     """§6 Experiment Agent: fan out a hyperparameter grid through the real
     research loop (each job is quota-metered), rank results by IR."""
     pcfg, store, engine = _ctx()
-    from unlockaid.research.runner import ResearchRunner
-    from unlockaid.agents.research import ExperimentAgent
     import copy
+
+    from unlockaid.agents.research import ExperimentAgent
+    from unlockaid.research.runner import ResearchRunner
     cfg = _load_ws(pcfg, args.workspace)
     runner = ResearchRunner(engine, store, pcfg.artifact_dir)
     grid = ExperimentAgent(runner).plan(cfg.hyperparameters,

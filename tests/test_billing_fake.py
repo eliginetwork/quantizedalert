@@ -1,7 +1,8 @@
 """Stripe adapter contract, verified against an injected fake client."""
 import pytest
-from unlockaid.store import Store
+
 from unlockaid.commercial.plans import StripeAdapter
+from unlockaid.store import Store
 
 
 class FakeStripe:

@@ -8,8 +8,7 @@ offline (no network in tests).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
-from typing import Optional
+from datetime import UTC, date
 
 from unlockaid.store import Store
 
@@ -145,7 +144,7 @@ class Metering:
 
 
 def contribution_margin(store: Store, workspace_id: str, plan: str,
-                        month: Optional[str] = None) -> dict:
+                        month: str | None = None) -> dict:
     """§22: Revenue − data − compute − storage − messaging = contribution."""
     month_start = month or date.today().replace(day=1).isoformat()
     p = PLANS[plan]
@@ -248,5 +247,5 @@ def _webhook_secret() -> str:
 
 
 def _now() -> int:
-    from datetime import datetime, timezone
-    return int(datetime.now(timezone.utc).timestamp())
+    from datetime import datetime
+    return int(datetime.now(UTC).timestamp())

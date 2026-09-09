@@ -5,17 +5,13 @@ plan quota enforcement + contribution math, and alert prioritization/suppression
 """
 from __future__ import annotations
 
-import os
-import tempfile
-
 import pytest
 
-from unlockaid.store import Store
+from unlockaid.alerts.intelligence import AlertIntelligence
+from unlockaid.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
 from unlockaid.config import AlertPrefs
 from unlockaid.schemas import AlertEvent, Severity, new_id
-from unlockaid.commercial.plans import (PLANS, Metering, QuotaError,
-                                        contribution_margin)
-from unlockaid.alerts.intelligence import AlertIntelligence
+from unlockaid.store import Store
 
 
 @pytest.fixture()
@@ -32,7 +28,7 @@ class FakeAlerter:
     def dispatch(self, md, channels, severity=None, dedup_key=None,
                  cooldown_key=None, route_type=None):
         self.sent.append(md)
-        return {c: True for c in channels}
+        return dict.fromkeys(channels, True)
 
 
 def _ev(kind="signal_change", sev=Severity.HIGH, insts=("SH600000",),

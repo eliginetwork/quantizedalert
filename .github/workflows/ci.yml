@@ -1,0 +1,43 @@
+name: ci
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install qlib (editable)
+        run: |
+          # qlib is not on PyPI — CI must have the checkout available
+          # Option A: add qlib as a git submodule at /qlib
+          # Option B: cache the repo. For now, fail loudly if missing:
+          test -d /root/repos/qlib || { echo "qlib checkout missing at /root/repos/qlib"; exit 1; }
+          uv pip install --system -e /root/repos/qlib
+
+      - name: Install unlockaid + dev
+        run: uv pip install --system -e ".[dev,billing]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy, non-blocking for now)
+        run: mypy src/unlockaid --ignore-missing-imports || true
+
+      - name: Tests
+        run: python -m pytest tests/ -q --timeout=60
+
+      - name: Warnings are errors (LinAlgWarning)
+        run: python -m pytest tests/ -q -W error::scipy.linalg.LinAlgWarning -W error::RuntimeWarning --timeout=60

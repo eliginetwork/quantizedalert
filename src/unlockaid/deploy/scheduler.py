@@ -7,8 +7,7 @@ running DailyPipeline.run for its workspace.
 from __future__ import annotations
 
 import logging
-import os
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger

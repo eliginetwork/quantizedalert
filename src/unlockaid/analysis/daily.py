@@ -15,17 +15,23 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from unlockaid.config import WorkspaceConfig
-from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
 from unlockaid.alerts.intelligence import AlertIntelligence
+from unlockaid.config import WorkspaceConfig
 from unlockaid.data.health import check_health
-from unlockaid.schemas import (AlertEvent, DailyRunResult, DataHealthStatus,
-                               Prediction, Severity, SignalChange, new_id)
+from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
+from unlockaid.schemas import (
+    AlertEvent,
+    DailyRunResult,
+    DataHealthStatus,
+    Prediction,
+    Severity,
+    SignalChange,
+    new_id,
+)
 from unlockaid.store import Store
 
 logger = logging.getLogger("unlockaid.daily")
@@ -39,7 +45,7 @@ class DailyPipeline:
 
     # ---------- inference ----------
     def inference(self, cfg: WorkspaceConfig, model_id: str, meter=None,
-                  asof: Optional[str] = None) -> pd.Series:
+                  asof: str | None = None) -> pd.Series:
         rec = self.store.get_model(model_id)
         if rec is None:
             raise QlibExecutionError(f"model {model_id} not in registry")
@@ -178,9 +184,11 @@ class DailyPipeline:
         every daily pass. Decision logic is deterministic code over real qlib
         outputs (Anti-Quack standard); an agent failure is logged and does NOT
         abort the run — predictions are already computed."""
-        from unlockaid.agents.research import (ModelMonitoringAgent,
-                                               MarketRegimeAgent,
-                                               PortfolioRiskAgent)
+        from unlockaid.agents.research import (
+            MarketRegimeAgent,
+            ModelMonitoringAgent,
+            PortfolioRiskAgent,
+        )
         events: list[AlertEvent] = []
         try:
             events += ModelMonitoringAgent().check(
@@ -211,7 +219,7 @@ class DailyPipeline:
             logger.error("PortfolioRiskAgent failed: %s", e)
         return events
 
-    def run(self, cfg: WorkspaceConfig, asof: Optional[str] = None,
+    def run(self, cfg: WorkspaceConfig, asof: str | None = None,
             meter=None) -> DailyRunResult:
         ws = cfg.workspace_id
         dep = self.store.get_deployment(ws)

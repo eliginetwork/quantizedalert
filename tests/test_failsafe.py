@@ -6,13 +6,12 @@ revenue claim: never silent zero output, never silent channel failure.
 """
 from __future__ import annotations
 
-import pandas as pd
 import pytest
 
-from unlockaid.config import AlertPrefs, WorkspaceConfig
-from unlockaid.analysis.daily import DailyPipeline
-from unlockaid.alerts.intelligence import AlertIntelligence
 from unlockaid.alerts.dsa_dispatch import AlertDeliveryError
+from unlockaid.alerts.intelligence import AlertIntelligence
+from unlockaid.analysis.daily import DailyPipeline
+from unlockaid.config import AlertPrefs, WorkspaceConfig
 from unlockaid.engine.qlib_engine import QlibExecutionError
 from unlockaid.schemas import AlertEvent, Severity, new_id
 from unlockaid.store import Store
@@ -42,7 +41,7 @@ class OkAlerter:
     engine_source = "fake"
 
     def dispatch(self, md, channels, **k):
-        return {c: True for c in channels}
+        return dict.fromkeys(channels, True)
 
 
 class DeadAlerter:
@@ -54,7 +53,7 @@ class DeadAlerter:
 
     def dispatch(self, md, channels, **k):
         self.calls += 1
-        return {c: False for c in channels}
+        return dict.fromkeys(channels, False)
 
 
 @pytest.fixture()

@@ -11,10 +11,9 @@ Design contract (Anti-Quack standard):
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -181,7 +180,7 @@ class MarketRegimeAgent:
         self.engine = engine
 
     def check(self, workspace_id: str, asof: str, benchmark: str = "SH000300",
-              lookback: int = 250) -> Optional[AlertEvent]:
+              lookback: int = 250) -> AlertEvent | None:
         cal = self.engine.calendar()
         start = pd.Timestamp(cal[-(lookback + 2)]).strftime("%Y-%m-%d")
         end = pd.Timestamp(cal[-1]).strftime("%Y-%m-%d")
@@ -226,9 +225,9 @@ class PortfolioRiskAgent:
             events.append(AlertEvent(
                 new_id("evt"), workspace_id, "risk_breach",
                 f"Portfolio drawdown {dd:.0%}",
-                f"Trailing-window portfolio drawdown exceeded 15%.", Severity.HIGH,
+                "Trailing-window portfolio drawdown exceeded 15%.", Severity.HIGH,
                 instruments=common.tolist(),
-                components={"confidence": 0.9, "risk": 0.9}))
+                components={"confidence": 0.9, "risk": 0.9, "vol20": vol20}))
         if conc > 0.25:
             events.append(AlertEvent(
                 new_id("evt"), workspace_id, "risk_breach",

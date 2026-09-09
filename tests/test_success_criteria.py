@@ -7,16 +7,14 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from unlockaid.config import PlatformConfig, WorkspaceConfig, AlertPrefs
+from unlockaid.config import AlertPrefs, PlatformConfig, WorkspaceConfig
 from unlockaid.store import Store
 
 PROVIDER = Path(os.path.expanduser("~/.qlib/qlib_data/cn_data"))
@@ -55,7 +53,7 @@ def test_sc1_qlib_asset_smoke(pcfg):
     # train + backtest a tiny deterministic ridge run, engine_source must be qlib
     from unlockaid.research.runner import ResearchRunner
     cfg = WorkspaceConfig(workspace_id="sc1", universe="csi300",
-                          model_type="ridge", hyperparameters={"alpha": 1.0},
+                          model_type="ridge", hyperparameters={"alpha": 1000.0},
                           factor_set="Alpha158")
     r = ResearchRunner(e, Store(pcfg.db_path), pcfg.artifact_dir)
     rec = r.train(cfg)
@@ -127,8 +125,8 @@ def test_sc4_fault_injection_class1(store):
         def calendar(self, *a, **k): raise QlibExecutionError("qlib calendar unavailable")
         def features(self, *a, **k): raise QlibExecutionError("qlib features unavailable")
         def load_model(self, *a, **k): raise QlibExecutionError("qlib model artifact load failed")
-    from unlockaid.analysis.daily import DailyPipeline
     from unlockaid.alerts.intelligence import AlertIntelligence
+    from unlockaid.analysis.daily import DailyPipeline
     cfg = WorkspaceConfig(workspace_id="w4", alerts=AlertPrefs())
     store.put_model({"model_id": "m4", "name": "n", "version": "v",
                      "status": "validated", "dataset_ref": "d",
@@ -138,13 +136,13 @@ def test_sc4_fault_injection_class1(store):
     store.set_deployment("w4", "m4", True, "17:30")
     class A:
         engine_source = "fake"
-        def dispatch(self, md, chs, **k): return {c: True for c in chs}
+        def dispatch(self, md, chs, **k): return dict.fromkeys(chs, True)
 
     res = DailyPipeline(BoomEngine(), store,
                         AlertIntelligence(store, A(), cfg.alerts)).run(cfg)
     assert res.ok is False and res.error        # qlib asset: loud, recorded
     # DSA asset: missing service raises, no silent fallback
-    from unlockaid.alerts.dsa_dispatch import DSAlerter, AlertDeliveryError
+    from unlockaid.alerts.dsa_dispatch import AlertDeliveryError, DSAlerter
     a = object.__new__(DSAlerter); a._service = None
     with pytest.raises(AlertDeliveryError):
         a.dispatch("x", ["slack"])
@@ -157,7 +155,7 @@ def test_sc5_alert_intelligence(store):
 
     class A:
         engine_source = "fake"
-        def dispatch(self, md, chs, **k): return {c: True for c in chs}
+        def dispatch(self, md, chs, **k): return dict.fromkeys(chs, True)
 
     prefs = AlertPrefs(max_alerts_per_day=1, min_severity="low", min_score=0.0,
                        channels=["custom_webhook"])
@@ -204,7 +202,8 @@ def test_sc6_registry_lineage(store):
 
 # ---------- SC7: CLI front door — every command executes real code ----------
 def test_sc7_cli_front_door():
-    import subprocess, sys
+    import subprocess
+    import sys
     cmds = ["data refresh", "data health", "init-workspace", "research",
             "validate", "deploy", "daily", "alert-test", "serve", "scorecard",
             "economics", "registry", "e2e", "discover", "experiments", "explain"]
@@ -237,8 +236,7 @@ def test_sc8_overfit_detection(pcfg):
 
 # ---------- SC9: commercial gating + metering + margin ----------
 def test_sc9_commercial_metering(store):
-    from unlockaid.commercial.plans import (Metering, QuotaError, PLANS,
-                                            contribution_margin)
+    from unlockaid.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
     m = Metering(store)
     cap = PLANS["free"]["research_jobs_month"]
     for _ in range(cap):
@@ -257,6 +255,7 @@ def test_sc9_commercial_metering(store):
 # ---------- SC10: dashboard contract ----------
 def test_sc10_dashboard_contract(store, pcfg):
     from fastapi.testclient import TestClient
+
     from unlockaid.dashboard.app import build_app
     store.put_daily_run("w10", "2026-09-04", True, "mdl_x", None, {
         "workspace_id": "w10", "asof": "2026-09-04", "ok": True,

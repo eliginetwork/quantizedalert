@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
@@ -72,7 +73,7 @@ def utcnow() -> str:
     # NOTE: kept in SQLite's native datetime text format ("YYYY-MM-DD HH:MM:SS",
     # UTC) so string comparisons against datetime('now', ...) in queries are
     # exact, not lexicographic-by-luck.
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class Store:
@@ -113,13 +114,13 @@ class Store:
         d["validation"] = json.loads(d["validation"]) if d["validation"] else None
         return d
 
-    def get_model(self, model_id: str) -> Optional[dict]:
+    def get_model(self, model_id: str) -> dict | None:
         with self._conn() as c:
             r = c.execute("SELECT * FROM models WHERE model_id=?", (model_id,)).fetchone()
         return self._model_row(r) if r else None
 
-    def list_models(self, workspace_id: Optional[str] = None,
-                    status: Optional[str] = None) -> list[dict]:
+    def list_models(self, workspace_id: str | None = None,
+                    status: str | None = None) -> list[dict]:
         conds, args = [], []
         if workspace_id:
             conds.append("workspace_id=?"); args.append(workspace_id)
@@ -167,7 +168,7 @@ class Store:
             c.execute("INSERT OR REPLACE INTO deployments VALUES (?,?,?,?,?)",
                       (workspace_id, model_id, int(enabled), schedule_time, utcnow()))
 
-    def get_deployment(self, workspace_id: str) -> Optional[dict]:
+    def get_deployment(self, workspace_id: str) -> dict | None:
         with self._conn() as c:
             r = c.execute("SELECT * FROM deployments WHERE workspace_id=?",
                           (workspace_id,)).fetchone()
@@ -180,7 +181,7 @@ class Store:
 
     # ---------- daily runs / jobs ----------
     def put_daily_run(self, workspace_id: str, asof: str, ok: bool, model_id: str,
-                      error: Optional[str], payload: dict) -> None:
+                      error: str | None, payload: dict) -> None:
         with self._conn() as c:
             c.execute(
                 "INSERT OR REPLACE INTO daily_runs"
@@ -189,7 +190,7 @@ class Store:
                 (workspace_id, asof, int(ok), model_id, error,
                  json.dumps(payload), utcnow(), utcnow()))
 
-    def latest_daily_run(self, workspace_id: str) -> Optional[dict]:
+    def latest_daily_run(self, workspace_id: str) -> dict | None:
         with self._conn() as c:
             r = c.execute("SELECT * FROM daily_runs WHERE workspace_id=?"
                           " ORDER BY asof DESC LIMIT 1", (workspace_id,)).fetchone()
@@ -210,7 +211,7 @@ class Store:
         return out
 
     def put_job(self, job_id: str, workspace_id: str, kind: str, status: str,
-                result: Optional[dict] = None, error: Optional[str] = None) -> None:
+                result: dict | None = None, error: str | None = None) -> None:
         with self._conn() as c:
             c.execute("INSERT OR REPLACE INTO jobs VALUES (?,?,?,?,?,?,?,?)",
                       (job_id, workspace_id, kind, status, utcnow(), utcnow(),
@@ -272,7 +273,7 @@ class Store:
     # ---------- usage metering ----------
     def meter(self, workspace_id: str, metric: str, qty: float = 1,
               ref: str = "") -> None:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         with self._conn() as c:
             c.execute("INSERT INTO usage (workspace_id,metric,qty,date,ref) VALUES (?,?,?,?,?)",
                       (workspace_id, metric, qty, today, ref))
@@ -293,8 +294,8 @@ class Store:
 
     # ---------- customers ----------
     def put_customer(self, workspace_id: str, email: str, plan: str,
-                     stripe_customer_id: Optional[str] = None,
-                     stripe_subscription_id: Optional[str] = None) -> None:
+                     stripe_customer_id: str | None = None,
+                     stripe_subscription_id: str | None = None) -> None:
         with self._conn() as c:
             c.execute(
                 "INSERT OR REPLACE INTO customers (workspace_id,email,plan,"
@@ -304,14 +305,14 @@ class Store:
                 (workspace_id, email, plan, stripe_customer_id, stripe_subscription_id,
                  "active", workspace_id, utcnow()))
 
-    def get_customer(self, workspace_id: str) -> Optional[dict]:
+    def get_customer(self, workspace_id: str) -> dict | None:
         with self._conn() as c:
             r = c.execute("SELECT * FROM customers WHERE workspace_id=?",
                           (workspace_id,)).fetchone()
         return dict(r) if r else None
 
     def set_customer_plan(self, workspace_id: str, plan: str,
-                          stripe_subscription_id: Optional[str] = None) -> None:
+                          stripe_subscription_id: str | None = None) -> None:
         with self._conn() as c:
             c.execute(
                 "UPDATE customers SET plan=?,"

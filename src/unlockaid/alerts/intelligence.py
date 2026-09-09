@@ -11,8 +11,7 @@ Delivery itself is delegated to the DSA asset (dsa_dispatch.DSAlerter).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 try:
     from zoneinfo import ZoneInfo
@@ -52,7 +51,7 @@ class AlertIntelligence:
     """Scores, gates, and dispatches alert events for one workspace."""
 
     def __init__(self, store: Store, alerter, prefs,
-                 tz_offset_hours: Optional[int] = None):
+                 tz_offset_hours: int | None = None):
         self.store = store
         self.alerter = alerter
         self.prefs = prefs
@@ -61,7 +60,7 @@ class AlertIntelligence:
         self.tz_offset = tz_offset_hours
 
     def _local_minutes_now(self) -> int:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         tz_name = getattr(self.prefs, "quiet_hours_tz", None)
         if ZoneInfo is not None and tz_name:
             try:
@@ -82,21 +81,21 @@ class AlertIntelligence:
         if sim_kind:
             # novelty reference time: the business date being processed (so
             # backfilled runs aren't artificially stale), falling back to now.
-            ref = datetime.now(timezone.utc)
+            ref = datetime.now(UTC)
             if asof:
                 try:
                     a_ref = datetime.strptime(asof, "%Y-%m-%d")
                     if a_ref.date() < ref.date():
-                        ref = a_ref.replace(hour=23, minute=59, tzinfo=timezone.utc)
+                        ref = a_ref.replace(hour=23, minute=59, tzinfo=UTC)
                 except ValueError:
                     pass
             def _parse_created(s: str) -> datetime:
                 for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
                     try:
-                        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+                        return datetime.strptime(s, fmt).replace(tzinfo=UTC)
                     except (ValueError, TypeError):
                         continue
-                return datetime.now(timezone.utc)
+                return datetime.now(UTC)
             ages_h = [(ref - _parse_created(a["created_at"])).total_seconds() / 3600
                       for a in sim_kind]
             ages_h = [a for a in ages_h if a >= 0] or [0.0]
@@ -114,7 +113,7 @@ class AlertIntelligence:
     # ---------- gating + dispatch ----------
     def process(self, events: list[AlertEvent], workspace_id: str, asof: str,
                 held_instruments: set[str],
-                quiet_now_minutes: Optional[int] = None) -> list[AlertDecision]:
+                quiet_now_minutes: int | None = None) -> list[AlertDecision]:
         """Rank, gate, deliver. Returns decisions in priority order (all recorded)."""
         decisions: list[AlertDecision] = []
         recent = self.store.recent_alerts(workspace_id, since_hours=72)
@@ -141,7 +140,7 @@ class AlertIntelligence:
                  if self.prefs.quiet_hours else False)
 
         for e in ranked:
-            reason: Optional[str] = None
+            reason: str | None = None
             if e.score < self.prefs.min_score:
                 reason = f"score {e.score:.2f} < min_score {self.prefs.min_score}"
             elif e.severity.rank < min_rank:

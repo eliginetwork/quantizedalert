@@ -12,9 +12,8 @@ call raises `AlertDeliveryError` — no silent fallback to a hand-rolled sender.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from unlockaid.assets.dsa_path import dsa_importable, dsa_module
 
@@ -64,7 +63,7 @@ class DSAlerter:
     dsa_path: str
     dry_run: bool = False
     _service: Any = None
-    _sink: Optional[DispatchSink] = None
+    _sink: DispatchSink | None = None
 
     def __post_init__(self) -> None:
         # DSA's Config.get_instance() reads env at construction time; channels are
@@ -96,10 +95,10 @@ class DSAlerter:
 
     # ---------- delivery ----------
     def dispatch(self, content_md: str, channels: list[str],
-                 severity: Optional[str] = None,
-                 dedup_key: Optional[str] = None,
-                 cooldown_key: Optional[str] = None,
-                 route_type: Optional[str] = None) -> dict[str, bool]:
+                 severity: str | None = None,
+                 dedup_key: str | None = None,
+                 cooldown_key: str | None = None,
+                 route_type: str | None = None) -> dict[str, bool]:
         """Deliver markdown to selected channels through DSA senders.
 
         Returns {channel: delivered_bool}. Raises AlertDeliveryError if the
@@ -136,8 +135,8 @@ class DSAlerter:
             results["_dry_run"] = True
         return results
 
-    def send(self, content_md: str, severity: Optional[str] = None,
-             dedup_key: Optional[str] = None) -> bool:
+    def send(self, content_md: str, severity: str | None = None,
+             dedup_key: str | None = None) -> bool:
         """All-configured-channels path using DSA's unified `send()` contract
         (routing/severity/dedup are DSA-native parameters)."""
         with dsa_importable(self.dsa_path):

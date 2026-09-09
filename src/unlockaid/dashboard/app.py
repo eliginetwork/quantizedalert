@@ -5,9 +5,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from unlockaid.config import PlatformConfig, WorkspaceConfig
@@ -68,7 +67,7 @@ data: qlib {{ engine_qlib }} · delivery: daily_stock_analysis {{ engine_dsa }}<
 </body></html>"""
 
 
-def build_app(platform_cfg: PlatformConfig, store: Optional[Store] = None) -> FastAPI:
+def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastAPI:
     app = FastAPI(title="UnlockAid")
     from jinja2 import Template
     tpl = Template(_TEMPLATE)
@@ -80,7 +79,7 @@ def build_app(platform_cfg: PlatformConfig, store: Optional[Store] = None) -> Fa
 
     def render(ws: str) -> str:
         try:
-            wc = WorkspaceConfig.load(os.path.join(p := platform_cfg.workspace_dir,
+            wc = WorkspaceConfig.load(os.path.join(platform_cfg.workspace_dir,
                                                    f"{ws}.yaml"))
         except (FileNotFoundError, NotADirectoryError):
             wc = None

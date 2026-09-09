@@ -8,14 +8,12 @@ Output is captured into docs/BUILD_EVIDENCE.md.
 import time
 
 import numpy as np
-import pandas as pd
 import qlib
+from qlib.backtest import backtest
 from qlib.constant import REG_CN
+from qlib.contrib.evaluate import risk_analysis
 from qlib.contrib.model.gbdt import LGBModel
 from qlib.contrib.strategy import TopkDropoutStrategy
-from qlib.backtest import backtest
-import os
-from qlib.contrib.evaluate import risk_analysis
 from qlib.utils import init_instance_by_config
 
 t0 = time.time()
@@ -24,6 +22,7 @@ print(f"qlib.init OK in {time.time()-t0:.1f}s, version={qlib.__version__}")
 
 # 1. data layer: real feature read through qlib's expression engine
 from qlib.data import D
+
 df = D.features(["SH600519", "SZ000001", "SH601318"], ["$close", "$volume"],
                 start_time="2026-06-01", end_time="2026-09-04")
 print(f"D.features OK: {df.shape[0]} rows, last close SH600519="

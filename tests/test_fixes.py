@@ -16,7 +16,7 @@ class OkAlerter:
     engine_source = "fake"
 
     def dispatch(self, md, channels, **k):
-        return {c: True for c in channels}
+        return dict.fromkeys(channels, True)
 
 
 # ---- H1: negative IR must fail the min_ir gate ---------------------------
@@ -37,7 +37,6 @@ def test_make_meter_records_overage_without_raising(tmp_path):
     for _ in range(cap):
         meter("w", "research_jobs", 1, ref="x")
     meter("w", "research_jobs", 1, ref="y")         # over limit — must not raise
-    from unlockaid.store import Store as _S
     with store._conn() as c:  # noqa: SLF001 — white-box assertion in tests only
         n = c.execute("SELECT COUNT(*) FROM usage WHERE metric='research_jobs_overage'"
                       ).fetchone()[0]

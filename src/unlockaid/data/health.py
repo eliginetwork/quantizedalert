@@ -8,16 +8,14 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import tarfile
 import tempfile
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
-from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
+from unlockaid.engine.qlib_engine import QlibEngine
 from unlockaid.schemas import AssetHealth, DataHealthReport, DataHealthStatus
 
 logger = logging.getLogger("unlockaid.data")
@@ -38,8 +36,8 @@ def refresh_dump(provider_uri: str, url: str = QLIB_DUMP_URL,
     """
     marker = os.path.join(provider_uri, "calendars", "day.txt")
     if os.path.exists(marker) and not force:
-        age = datetime.now(timezone.utc) - datetime.fromtimestamp(
-            os.path.getmtime(marker), timezone.utc)
+        age = datetime.now(UTC) - datetime.fromtimestamp(
+            os.path.getmtime(marker), UTC)
         if age < timedelta(days=1):
             return {"status": "fresh", "age_days": age.days, "path": provider_uri}
     import requests
@@ -79,7 +77,7 @@ def check_health(engine: QlibEngine, universe: str, instruments: list[str],
                          ["$close", "$volume", "Ref($close, 1)", "Ref($volume, 1)"],
                          start, last)
     df.columns = ["close", "volume", "prev_close", "prev_volume"]
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     assets: list[AssetHealth] = []
     failed: list[str] = []
     per_inst: dict[str, pd.DataFrame] = {}

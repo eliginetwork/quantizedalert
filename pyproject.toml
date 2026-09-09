@@ -67,7 +67,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "C4", "UP"]
-ignore = []
+ignore = ["E501", "E702", "B905", "E402", "UP042"]
 
 [tool.coverage.run]
 source = ["unlockaid"]

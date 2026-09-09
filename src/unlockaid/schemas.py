@@ -8,9 +8,9 @@ named fallback); `degraded` paths must say so.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 def new_id(prefix: str) -> str:
@@ -49,7 +49,7 @@ class DataHealthStatus(str, Enum):
 class AssetHealth:
     """Layer A: health verdict for one instrument's data."""
     instrument: str
-    last_bar: Optional[str]
+    last_bar: str | None
     status: DataHealthStatus
     staleness_days: int
     anomalies: list[str] = field(default_factory=list)
@@ -60,7 +60,7 @@ class AssetHealth:
 class DataHealthReport:
     checked_at: str
     universe: str
-    calendar_last: Optional[str]
+    calendar_last: str | None
     fresh: bool
     assets: list[AssetHealth]
     failed: list[str] = field(default_factory=list)  # pipeline failures
@@ -126,9 +126,9 @@ class ModelRecord:
     dataset_ref: str                   # e.g. "Alpha158/csi300/2025-01-01..2026-09-04"
     factor_set: str
     hyperparameters: dict[str, Any]
-    experiment_ref: Optional[str]      # qlib workflow recorder id (lineage!)
-    artifact_path: Optional[str]
-    validation: Optional[dict]
+    experiment_ref: str | None      # qlib workflow recorder id (lineage!)
+    artifact_path: str | None
+    validation: dict | None
     created_at: str
     created_by: str = "research-agent"
     engine_source: str = "qlib"
@@ -155,13 +155,13 @@ class SignalChange:
     """Layer F: change vs previous day for the watchlist."""
     instrument: str
     asof: str
-    previous_rank: Optional[int]
+    previous_rank: int | None
     rank: int
-    previous_score: Optional[float]
+    previous_score: float | None
     score: float
-    rank_delta: Optional[int]
-    price: Optional[float] = None
-    price_change_pct: Optional[float] = None
+    rank_delta: int | None
+    price: float | None = None
+    price_change_pct: float | None = None
 
 
 @dataclass
@@ -179,7 +179,7 @@ class AlertEvent:
     components: dict[str, float] = field(default_factory=dict)
     created_at: str = ""
     dedup_key: str = ""
-    route_type: Optional[str] = None
+    route_type: str | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -191,7 +191,7 @@ class AlertEvent:
 class AlertDecision:
     event: AlertEvent
     deliver: bool
-    suppress_reason: Optional[str] = None
+    suppress_reason: str | None = None
     channels: list[str] = field(default_factory=list)
     delivered: dict[str, bool] = field(default_factory=dict)
     engine_source: str = "unlockaid+daily_stock_analysis"
@@ -203,13 +203,13 @@ class DailyRunResult:
     workspace_id: str
     asof: str
     ok: bool
-    data_health: Optional[DataHealthReport]
+    data_health: DataHealthReport | None
     predictions: list[Prediction]
     changes: list[SignalChange]
     portfolio: dict[str, Any]
     alerts: list[AlertDecision]
     model_id: str
-    error: Optional[str] = None
+    error: str | None = None
     engine_sources: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -32,7 +32,7 @@ class PlatformConfig:
     num_boost_round: int = 200
 
     @classmethod
-    def load(cls, path: Optional[Path] = None) -> "PlatformConfig":
+    def load(cls, path: Path | None = None) -> PlatformConfig:
         p = path or (ROOT / "config" / "platform.yaml")
         raw = {}
         if p.exists():
@@ -89,7 +89,7 @@ class WorkspaceConfig:
     alerts: AlertPrefs = field(default_factory=AlertPrefs)
 
     @classmethod
-    def load(cls, path: Path) -> "WorkspaceConfig":
+    def load(cls, path: Path) -> WorkspaceConfig:
         raw = yaml.safe_load(Path(path).read_text()) or {}
         ap = raw.pop("alerts", {}) or {}
         known = {k: v for k, v in ap.items() if k in AlertPrefs.__dataclass_fields__}

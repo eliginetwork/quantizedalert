@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -79,8 +79,8 @@ class QlibEngine:
                 f"{start_time}..{end_time} — universe/date mismatch?")
         return df
 
-    def calendar(self, start_time: Optional[str] = None,
-                 end_time: Optional[str] = None) -> list:
+    def calendar(self, start_time: str | None = None,
+                 end_time: str | None = None) -> list:
         self.init()
         from qlib.data import D
         return list(D.calendar(start_time=start_time, end_time=end_time))
@@ -203,7 +203,10 @@ class QlibEngine:
             qlib.init(provider_uri=self.provider_uri, region=self.region)
             with R.start(experiment_name=experiment_name, recorder_id=None):
                 R.log_params(**{"engine": "qlib", "model": type(model).__name__})
-                model.fit(dataset)
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*ill-conditioned matrix.*", category=RuntimeWarning)
+                    model.fit(dataset)
                 valid_pred = model.predict(dataset, segment="valid")
                 test_pred = model.predict(dataset, segment="test")
                 rec = R.get_recorder()
@@ -247,8 +250,11 @@ class QlibEngine:
             daily_ric.append(float(
                 pd.Series(gx).corr(pd.Series(gy), method="spearman")))
         if daily_ic:
-            ic = float(np.mean(daily_ic))
-            rank_ic = float(np.mean(daily_ric)) if daily_ric else ic
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                ic = float(np.nanmean(daily_ic))
+                rank_ic = float(np.nanmean(daily_ric)) if daily_ric else ic
         else:
             ic, rank_ic = ic_pooled, ic_pooled
         return {"ic": ic, "rank_ic": rank_ic, "ic_pooled": ic_pooled,
@@ -282,25 +288,28 @@ class QlibEngine:
     def backtest(self, signal: pd.Series, start_time: str, end_time: str,
                  topk: int = 50, n_drop: int = 5, account: float = 1_000_000,
                  benchmark: str = "SH000300",
-                 exchange_kwargs: Optional[dict] = None) -> dict[str, Any]:
+                 exchange_kwargs: dict | None = None) -> dict[str, Any]:
         """Run qlib's real backtest engine (TopkDropout + SimulatorExecutor)."""
         self.init()
-        from qlib.contrib.strategy import TopkDropoutStrategy
         from qlib.backtest import backtest as qlib_backtest
         from qlib.contrib.evaluate import risk_analysis
+        from qlib.contrib.strategy import TopkDropoutStrategy
         sig = signal.dropna()
         if sig.empty:
             raise QlibExecutionError("backtest received an all-NaN signal")
         strategy = TopkDropoutStrategy(signal=sig, topk=topk, n_drop=n_drop)
         ex = {"class": "SimulatorExecutor", "module_path": "qlib.backtest.executor",
               "kwargs": {"time_per_step": "day", "generate_portfolio_metrics": True}}
-        try:
-            pm, _ind = qlib_backtest(start_time=start_time, end_time=end_time,
-                                     strategy=strategy, executor=ex, account=account,
-                                     benchmark=benchmark,
-                                     exchange_kwargs=exchange_kwargs or {})
-        except Exception as e:
-            raise QlibExecutionError(f"qlib backtest failed: {e}") from e
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            try:
+                pm, _ind = qlib_backtest(start_time=start_time, end_time=end_time,
+                                         strategy=strategy, executor=ex, account=account,
+                                         benchmark=benchmark,
+                                         exchange_kwargs=exchange_kwargs or {})
+            except Exception as e:
+                raise QlibExecutionError(f"qlib backtest failed: {e}") from e
         if not pm:
             raise QlibExecutionError("qlib backtest produced no portfolio metrics")
         freq = list(pm.keys())[0]
