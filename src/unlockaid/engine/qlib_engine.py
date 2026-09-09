@@ -201,7 +201,7 @@ class QlibEngine:
         try:
             os.makedirs(recorder_dir, exist_ok=True)
             qlib.init(provider_uri=self.provider_uri, region=self.region)
-            with R.start(experiment_name=experiment_name, recorder_id=None):
+            with R.start(experiment_name=experiment_name, recorder_id=None, uri=recorder_dir):
                 R.log_params(**{"engine": "qlib", "model": type(model).__name__})
                 import warnings
                 with warnings.catch_warnings():
