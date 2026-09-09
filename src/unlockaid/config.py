@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[2]
 class PlatformConfig:
     qlib_provider_uri: str = str(Path.home() / ".qlib/qlib_data/cn_data")
     qlib_region: str = "cn"
-    dsa_path: str = "/root/repos/daily_stock_analysis"
-    qlib_path: str = "/root/repos/qlib"
+    dsa_path: str = str(ROOT / "repos" / "daily_stock_analysis")
+    qlib_path: str = str(ROOT / "repos" / "qlib")
     mlflow_allow_file_store: bool = True
     db_path: str = str(ROOT / "data" / "unlockaid.db")
     artifact_dir: str = str(ROOT / "data" / "artifacts")
@@ -31,21 +31,31 @@ class PlatformConfig:
     train_n_jobs: int = 8
     num_boost_round: int = 200
 
+    def __post_init__(self) -> None:
+        self.qlib_provider_uri = os.path.expanduser(str(self.qlib_provider_uri))
+        if not os.path.isabs(str(self.dsa_path)):
+            self.dsa_path = str((ROOT / self.dsa_path).resolve())
+        if not os.path.isabs(str(self.qlib_path)):
+            self.qlib_path = str((ROOT / self.qlib_path).resolve())
+
     @classmethod
     def load(cls, path: Path | None = None) -> PlatformConfig:
         p = path or (ROOT / "config" / "platform.yaml")
-        raw = {}
+        raw: dict[str, Any] = {}
         if p.exists():
             raw = yaml.safe_load(p.read_text()) or {}
         known = {k: v for k, v in raw.items() if k in cls.__dataclass_fields__}
-        # env overrides apply only to fields NOT explicitly set in the yaml /
-        # kwargs (env is read at call time, never at import time)
         env_map = {"UNLOCKAID_QLIB_URI": "qlib_provider_uri",
                    "DSA_PATH": "dsa_path",
                    "QLIB_PATH": "qlib_path"}
         for env_key, field_name in env_map.items():
-            if env_key in os.environ and field_name not in known:
+            if env_key in os.environ:
                 known[field_name] = os.environ[env_key]
+        if "qlib_provider_uri" in known:
+            known["qlib_provider_uri"] = os.path.expanduser(str(known["qlib_provider_uri"]))
+        for key in ("dsa_path", "qlib_path"):
+            if key in known and not os.path.isabs(str(known[key])):
+                known[key] = str((ROOT / known[key]).resolve())
         return cls(**known)
 
 

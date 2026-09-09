@@ -11,3 +11,4 @@ data/backups/
 .env
 *.egg-info/
 .coverage
+repos/

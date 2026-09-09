@@ -1,7 +1,11 @@
-qlib_provider_uri: ~/.qlib/qlib_data/cn_data
+# Platform config — portable defaults. Override with env vars:
+#   UNLOCKAID_QLIB_URI, DSA_PATH, QLIB_PATH
+# On this host the real paths are /root/repos/qlib etc., but the file
+# itself must not hard-code one host's layout.
+qlib_provider_uri: ~/.qlib/qlib_data/cn_data   # env: UNLOCKAID_QLIB_URI
 qlib_region: cn
-dsa_path: /root/repos/daily_stock_analysis
-qlib_path: /root/repos/qlib
+dsa_path: ./repos/daily_stock_analysis         # env: DSA_PATH
+qlib_path: ./repos/qlib                        # env: QLIB_PATH
 db_path: data/unlockaid.db
 artifact_dir: data/artifacts
 workspace_dir: config/workspaces
