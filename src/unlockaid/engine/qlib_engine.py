@@ -37,6 +37,35 @@ def _import_qlib():
     return qlib
 
 
+def _patch_mlflow_file_store() -> None:
+    """MLflow 3.16+ FileStore._is_valid_run_directory blocks any directory path
+    containing 'artifacts' in its parent hierarchy (ZDI-CAN-26649 CVE fix was overly broad).
+    This patch scopes the check to be relative to the tracking root directory."""
+    try:
+        from mlflow.store.tracking.file_store import FileStore
+        from mlflow.utils.file_utils import is_directory
+        orig = FileStore._is_valid_run_directory
+
+        def _patched(self, run_dir):
+            try:
+                rel = os.path.relpath(run_dir, self.root_directory)
+                rel_parts = os.path.normpath(rel).split(os.sep)
+                if FileStore.ARTIFACTS_FOLDER_NAME in rel_parts[:-1]:
+                    return False
+                required_subdirs = [
+                    FileStore.METRICS_FOLDER_NAME,
+                    FileStore.PARAMS_FOLDER_NAME,
+                    FileStore.ARTIFACTS_FOLDER_NAME,
+                ]
+                return all(is_directory(os.path.join(run_dir, s)) for s in required_subdirs)
+            except Exception:
+                return orig(self, run_dir)
+
+        FileStore._is_valid_run_directory = _patched
+    except Exception:
+        pass
+
+
 @dataclass
 class QlibEngine:
     """Owns one qlib session and exposes research primitives as project contracts."""
@@ -56,6 +85,7 @@ class QlibEngine:
                 f"qlib data provider_uri missing: {self.provider_uri}. "
                 "Run `unlockaid data refresh` to download the qlib binary dump.")
         os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+        _patch_mlflow_file_store()
         from qlib.constant import REG_CN, REG_US
         region = REG_CN if self.region == "cn" else REG_US
         qlib.init(provider_uri=self.provider_uri, region=region)
