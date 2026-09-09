@@ -55,6 +55,10 @@ class DailyPipeline:
             cal = [d for d in cal if str(d)[:10] <= asof]
             if not cal:
                 raise QlibExecutionError(f"calendar has no bars up to {asof}")
+        if len(cal) < 20:
+            raise QlibExecutionError(
+                f"calendar has only {len(cal)} bars (<20) — insufficient history "
+                "for daily inference features")
         last = pd.Timestamp(cal[-1]).strftime("%Y-%m-%d")
         start = pd.Timestamp(cal[-80]).strftime("%Y-%m-%d")
         ds = self.engine.build_dataset(
@@ -218,9 +222,14 @@ class DailyPipeline:
                           "data_refresh": "qlib",
                           "delivery": "daily_stock_analysis"}
         try:
-            health = check_health(self.engine, cfg.universe,
-                                  cfg.instruments or [])
-        except QlibExecutionError as e:
+            # health instruments: explicit list, else resolved from the universe
+            # (an empty list would make the check vacuous — no asset can ever
+            # be flagged STALE/MISSING). Any engine failure here degrades to a
+            # recorded health error — health must never crash the run unrecorded.
+            health_insts = cfg.instruments or self.engine.list_instruments(
+                cfg.universe, cfg.handler_range[0], cfg.handler_range[1])
+            health = check_health(self.engine, cfg.universe, health_insts)
+        except Exception as e:  # noqa: BLE001 — fail-safe, recorded, not silent
             health = None
             self.store.put_data_health(ws, str(asof or "n/a"), "error", {"error": str(e)})
         try:
@@ -240,8 +249,13 @@ class DailyPipeline:
             ranked["rk"] = np.arange(1, len(ranked) + 1)
             # enrich with latest price/change via qlib
             insts = ranked["instrument"].tolist()
+            # price/change window: only the last few calendar days are needed
+            price_cal = [str(d)[:10] for d in self.engine.calendar()]
+            if asof:
+                price_cal = [d for d in price_cal if d <= str(asof)[:10]]
+            price_start = pd.Timestamp(price_cal[-6]).strftime("%Y-%m-%d")
             fx = self.engine.features(insts, ["$close", "Ref($close,1)"],
-                                      "1900-01-01", asof)
+                                      price_start, asof)
             chg = {}
             for inst, g in fx.groupby(level="instrument"):
                 g = g.droplevel("instrument").sort_index().tail(2)
@@ -270,6 +284,11 @@ class DailyPipeline:
                 changes=changes, portfolio=portfolio, alerts=decisions,
                 model_id=model_id, engine_sources=engine_sources)
             self.store.put_daily_run(ws, asof, True, model_id, None, result.to_dict())
+            self.store.put_job(new_id("job"), ws, "daily_run", "done",
+                               result={"asof": asof, "model_id": model_id,
+                                       "n_predictions": len(result.predictions),
+                                       "n_alerts_delivered": sum(
+                                           1 for d in decisions if d.deliver)})
             if meter:
                 meter(ws, "alerts_generated", len(events))
                 meter(ws, "alerts_delivered", sum(1 for d in decisions if d.deliver))
@@ -289,4 +308,6 @@ class DailyPipeline:
                                     error=str(e), engine_sources=engine_sources)
             self.store.put_daily_run(ws, str(asof or ""), False, model_id, str(e),
                                      result.to_dict())
+            self.store.put_job(new_id("job"), ws, "daily_run", "error",
+                               error=str(e))
             return result

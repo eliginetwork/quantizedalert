@@ -14,6 +14,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None
+
 from unlockaid.schemas import AlertDecision, AlertEvent, Severity
 from unlockaid.store import Store, utcnow
 
@@ -47,24 +52,54 @@ class AlertIntelligence:
     """Scores, gates, and dispatches alert events for one workspace."""
 
     def __init__(self, store: Store, alerter, prefs,
-                 tz_offset_hours: int = 8):  # Asia/Shanghai default
+                 tz_offset_hours: Optional[int] = None):
         self.store = store
         self.alerter = alerter
         self.prefs = prefs
+        # Quiet hours honor prefs.quiet_hours_tz via zoneinfo when available;
+        # the fixed-offset parameter remains as a deterministic test override.
         self.tz_offset = tz_offset_hours
+
+    def _local_minutes_now(self) -> int:
+        now = datetime.now(timezone.utc)
+        tz_name = getattr(self.prefs, "quiet_hours_tz", None)
+        if ZoneInfo is not None and tz_name:
+            try:
+                local = now.astimezone(ZoneInfo(tz_name))
+                return local.hour * 60 + local.minute
+            except Exception:
+                pass
+        offset = self.tz_offset if self.tz_offset is not None else 8
+        return (now.hour * 60 + now.minute + offset * 60) % 1440
 
     # ---------- scoring ----------
     def score(self, e: AlertEvent, held_instruments: set[str],
-              recent_delivered: list[dict]) -> dict[str, float]:
+              recent_delivered: list[dict], asof: str = "") -> dict[str, float]:
         sev = e.severity.rank / 5.0
         sim_kind = [a for a in recent_delivered
                     if a["kind"] == e.kind and a["deliver"]]
         novelty = 1.0
         if sim_kind:
-            ages_h = [(datetime.now(timezone.utc)
-                       - datetime.strptime(a["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-                       .replace(tzinfo=timezone.utc)
-                       ).total_seconds() / 3600 for a in sim_kind]
+            # novelty reference time: the business date being processed (so
+            # backfilled runs aren't artificially stale), falling back to now.
+            ref = datetime.now(timezone.utc)
+            if asof:
+                try:
+                    a_ref = datetime.strptime(asof, "%Y-%m-%d")
+                    if a_ref.date() < ref.date():
+                        ref = a_ref.replace(hour=23, minute=59, tzinfo=timezone.utc)
+                except ValueError:
+                    pass
+            def _parse_created(s: str) -> datetime:
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        continue
+                return datetime.now(timezone.utc)
+            ages_h = [(ref - _parse_created(a["created_at"])).total_seconds() / 3600
+                      for a in sim_kind]
+            ages_h = [a for a in ages_h if a >= 0] or [0.0]
             novelty = max(0.0, min(1.0, min(ages_h) / 24.0))
         conf = min(1.0, max(0.0, e.components.get("confidence", 0.5)))
         port_rel = 1.0 if (set(e.instruments) & held_instruments) else 0.25
@@ -87,7 +122,7 @@ class AlertIntelligence:
         min_rank = Severity(self.prefs.min_severity).rank
 
         for e in events:
-            e.components = self.score(e, held_instruments, recent)
+            e.components = self.score(e, held_instruments, recent, asof=asof)
             e.score = self.value(e.components)
             e.created_at = e.created_at or utcnow()
             # instrument-specific fallback: distinct signal changes for distinct
@@ -100,8 +135,7 @@ class AlertIntelligence:
         if quiet_now_minutes is not None:
             local_min = quiet_now_minutes
         else:
-            now = datetime.now(timezone.utc)
-            local_min = (now.hour * 60 + now.minute + self.tz_offset * 60) % 1440
+            local_min = self._local_minutes_now()
         quiet = (in_quiet_hours(local_min, self.prefs.quiet_hours[0],
                                 self.prefs.quiet_hours[1])
                  if self.prefs.quiet_hours else False)

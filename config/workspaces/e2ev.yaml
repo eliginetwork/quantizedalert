@@ -1,0 +1,57 @@
+workspace_id: e2ev
+name: ridge
+plan: individual
+universe: csi300
+instruments: []
+watchlist:
+- SH600519
+- SZ000001
+- SH601318
+- SH600036
+- SZ000333
+portfolio: []
+region: cn
+factor_set: Alpha158
+model_type: ridge
+hyperparameters:
+  alpha: 1.0
+train_segments:
+  train:
+  - '2025-01-01'
+  - '2026-03-31'
+  valid:
+  - '2026-04-01'
+  - '2026-05-05'
+  test:
+  - '2026-05-06'
+  - '2026-09-04'
+handler_range:
+- '2025-01-01'
+- '2026-09-04'
+fit_range:
+- '2025-01-01'
+- '2026-03-01'
+backtest:
+  topk: 30
+  n_drop: 3
+  account: 1000000
+  benchmark: SH000300
+schedule_time: '17:30'
+alerts:
+  min_score: 0.45
+  max_alerts_per_day: 5
+  quiet_hours:
+  - '23:00'
+  - 07:00
+  quiet_hours_tz: Asia/Shanghai
+  channels:
+  - custom_webhook
+  routes: {}
+  min_severity: low
+  dedup_window_hours: 24
+label_horizon_days: 5
+topk: 30
+n_drop: 3
+validation_gates:
+  min_abs_ic: 0.005
+  min_information_ratio: 0.5

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS models (
 CREATE TABLE IF NOT EXISTS predictions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   workspace_id TEXT, model_id TEXT, instrument TEXT, asof TEXT,
-  score REAL, rank INTEGER,
+  score REAL, "rank" INTEGER,
   UNIQUE(workspace_id, model_id, instrument, asof)
 );
 CREATE INDEX IF NOT EXISTS ix_pred_ws_date ON predictions(workspace_id, asof);
@@ -69,7 +69,10 @@ CREATE TABLE IF NOT EXISTS drift (
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # NOTE: kept in SQLite's native datetime text format ("YYYY-MM-DD HH:MM:SS",
+    # UTC) so string comparisons against datetime('now', ...) in queries are
+    # exact, not lexicographic-by-luck.
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class Store:
@@ -133,15 +136,15 @@ class Store:
     def put_predictions(self, preds: list[dict]) -> None:
         with self._conn() as c:
             c.executemany(
-                "INSERT OR REPLACE INTO predictions"
-                " (workspace_id,model_id,instrument,asof,score,rank)"
-                " VALUES (:workspace_id,:model_id,:instrument,:asof,:score,:rank)", preds)
+                'INSERT OR REPLACE INTO predictions'
+                ' (workspace_id,model_id,instrument,asof,score,"rank")'
+                ' VALUES (:workspace_id,:model_id,:instrument,:asof,:score,:rank)', preds)
 
     def get_predictions(self, workspace_id: str, asof: str) -> list[dict]:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
-                "SELECT * FROM predictions WHERE workspace_id=? AND asof=?"
-                " ORDER BY rank", (workspace_id, asof))]
+                'SELECT * FROM predictions WHERE workspace_id=? AND asof=?'
+                ' ORDER BY "rank"', (workspace_id, asof))]
 
     def get_previous_predictions(self, workspace_id: str, model_id: str,
                                  before: str) -> list[dict]:
@@ -153,8 +156,8 @@ class Store:
             if not row or not row["a"]:
                 return []
             rows = c.execute(
-                "SELECT * FROM predictions WHERE workspace_id=? AND model_id=? AND asof=?"
-                " ORDER BY rank", (workspace_id, model_id, row["a"])).fetchall()
+                'SELECT * FROM predictions WHERE workspace_id=? AND model_id=? AND asof=?'
+                ' ORDER BY "rank"', (workspace_id, model_id, row["a"])).fetchall()
         return [dict(r) for r in rows]
 
     # ---------- deployments (Layer E) ----------
@@ -191,6 +194,20 @@ class Store:
             r = c.execute("SELECT * FROM daily_runs WHERE workspace_id=?"
                           " ORDER BY asof DESC LIMIT 1", (workspace_id,)).fetchone()
         return dict(r) if r else None
+
+    def recent_daily_runs(self, workspace_id: str, limit: int = 10) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT asof, ok, payload FROM daily_runs WHERE workspace_id=?"
+                " ORDER BY asof DESC LIMIT ?", (workspace_id, limit)).fetchall()
+        out = []
+        for r in rows:
+            pl = json.loads(r["payload"]) if r["payload"] else {}
+            out.append({"asof": r["asof"], "ok": bool(r["ok"]),
+                        "n_pred": pl.get("n_predictions", 0),
+                        "n_alerts": sum(1 for a in pl.get("alerts", [])
+                                        if isinstance(a, dict) and a.get("deliver"))})
+        return out
 
     def put_job(self, job_id: str, workspace_id: str, kind: str, status: str,
                 result: Optional[dict] = None, error: Optional[str] = None) -> None:

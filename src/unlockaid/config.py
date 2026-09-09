@@ -18,11 +18,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass
 class PlatformConfig:
-    qlib_provider_uri: str = os.environ.get(
-        "UNLOCKAID_QLIB_URI", str(Path.home() / ".qlib/qlib_data/cn_data"))
+    qlib_provider_uri: str = str(Path.home() / ".qlib/qlib_data/cn_data")
     qlib_region: str = "cn"
-    dsa_path: str = os.environ.get("DSA_PATH", "/root/repos/daily_stock_analysis")
-    qlib_path: str = os.environ.get("QLIB_PATH", "/root/repos/qlib")
+    dsa_path: str = "/root/repos/daily_stock_analysis"
+    qlib_path: str = "/root/repos/qlib"
     mlflow_allow_file_store: bool = True
     db_path: str = str(ROOT / "data" / "unlockaid.db")
     artifact_dir: str = str(ROOT / "data" / "artifacts")
@@ -35,11 +34,19 @@ class PlatformConfig:
     @classmethod
     def load(cls, path: Optional[Path] = None) -> "PlatformConfig":
         p = path or (ROOT / "config" / "platform.yaml")
+        raw = {}
         if p.exists():
             raw = yaml.safe_load(p.read_text()) or {}
-            known = {k: v for k, v in raw.items() if k in cls.__dataclass_fields__}
-            return cls(**known)
-        return cls()
+        known = {k: v for k, v in raw.items() if k in cls.__dataclass_fields__}
+        # env overrides apply only to fields NOT explicitly set in the yaml /
+        # kwargs (env is read at call time, never at import time)
+        env_map = {"UNLOCKAID_QLIB_URI": "qlib_provider_uri",
+                   "DSA_PATH": "dsa_path",
+                   "QLIB_PATH": "qlib_path"}
+        for env_key, field_name in env_map.items():
+            if env_key in os.environ and field_name not in known:
+                known[field_name] = os.environ[env_key]
+        return cls(**known)
 
 
 @dataclass

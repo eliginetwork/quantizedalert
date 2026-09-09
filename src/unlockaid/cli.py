@@ -59,19 +59,44 @@ def _metering(store):
 
 
 def make_meter(store, plan):
-    """Uniform meter callback: fn(workspace, metric, qty, ref) with plan quotas."""
+    """Uniform meter callback: fn(workspace, metric, qty, ref).
+
+    research/inference quotas are enforced pre-flight (see `preflight_quota`)
+    and raise here if a run exceeds plan limits. `alerts_delivered` is recorded
+    *after* delivery without raising — messages already went out, so a quota
+    breach must surface as billable usage, never as a failed run (H3 fix).
+    """
     mt = _metering(store)
-    quota = {"research_jobs": mt.research, "inference_jobs": mt.inference,
-             "alerts_delivered": mt.alert}
+    quota = {"research_jobs": mt.research, "inference_jobs": mt.inference}
 
     def meter(workspace_id, metric, qty=1, ref=""):
         hook = quota.get(metric)
         if hook:
             for _ in range(int(qty)):
-                hook(workspace_id, plan, ref)
+                try:
+                    hook(workspace_id, plan, ref)
+                except Exception as e:  # QuotaError post-hoc: record, don't abort
+                    logger.warning("quota check after completed work (%s): %s; "
+                                   "recording usage as overage", metric, e)
+                    store.meter(workspace_id, metric + "_overage", 1, ref)
         else:
             store.meter(workspace_id, metric, qty, ref)
     return meter
+
+
+def preflight_quota(store, cfg, metric: str, qty: int = 1) -> None:
+    """Raise QuotaError BEFORE work starts (research/daily commands)."""
+    from unlockaid.commercial.plans import Metering
+    Metering(store).check_quota(cfg.workspace_id, cfg.plan, metric, qty)
+
+
+def cap_alert_budget(store, cfg):
+    """Unify the two alert budgets: workspace prefs may not exceed the plan's
+    per-day ceiling — the plan quota is the single source of truth."""
+    from unlockaid.commercial.plans import Metering
+    cfg.alerts.max_alerts_per_day = min(
+        cfg.alerts.max_alerts_per_day, Metering.effective_alert_budget(cfg.plan))
+    return cfg
 
 
 # ---------------- commands ----------------
@@ -127,6 +152,7 @@ def cmd_research(args):
     pcfg, store, engine = _ctx()
     from unlockaid.research.runner import ResearchRunner
     cfg = _load_ws(pcfg, args.workspace)
+    preflight_quota(store, cfg, "research_jobs")
     runner = ResearchRunner(engine, store, pcfg.artifact_dir)
     rec = runner.train(cfg, meter=make_meter(store, cfg.plan))
     bt = runner.run_result(rec.model_id)["backtest"]
@@ -179,6 +205,7 @@ def cmd_daily(args):
     from unlockaid.analysis.daily import DailyPipeline
     from unlockaid.alerts.intelligence import AlertIntelligence
     cfg = _load_ws(pcfg, args.workspace)
+    cap_alert_budget(store, cfg)
     alerter = _alerter(pcfg)
     intel = AlertIntelligence(store, alerter, cfg.alerts)
     pipe = DailyPipeline(engine, store, intel)
@@ -269,6 +296,8 @@ def cmd_e2e(args):
     from unlockaid.alerts.intelligence import AlertIntelligence
     ws = args.workspace
     cfg = _load_ws(pcfg, ws)
+    cap_alert_budget(store, cfg)
+    preflight_quota(store, cfg, "research_jobs", qty=2)  # train + walk-forward folds
     runner = ResearchRunner(engine, store, pcfg.artifact_dir)
     meter = make_meter(store, cfg.plan)
     rec = runner.train(cfg, meter=meter)

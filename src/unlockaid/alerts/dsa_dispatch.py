@@ -114,18 +114,26 @@ class DSAlerter:
                 results[slug] = False
                 logger.warning("unknown alert channel %s (not a DSA sender)", slug)
                 continue
-            fn = getattr(self._service, meth)
+            fn = None
+            try:
+                fn = getattr(self._service, meth)
+            except AttributeError:
+                pass
             if fn is None:
                 raise AlertDeliveryError(
                     f"DSA service missing sender method {meth}; asset integration broken")
             try:
                 ok = bool(fn(content_md))
+            except AlertDeliveryError:
+                raise
             except Exception as e:
                 logger.error("DSA send failed on %s: %s", slug, e)
                 ok = False
             results[slug] = ok
         if self._sink is not None:
             logger.info("dry-run dispatch recorded %d DSA sends", len(self._sink.sent))
+            # Amendment E: dry-run sends must be identifiable in the audit trail.
+            results["_dry_run"] = True
         return results
 
     def send(self, content_md: str, severity: Optional[str] = None,

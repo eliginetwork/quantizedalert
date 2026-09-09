@@ -95,6 +95,23 @@ class Metering:
     def month_start() -> str:
         return date.today().replace(day=1).isoformat()
 
+    def check_quota(self, workspace_id: str, plan: str, metric: str,
+                    qty: float = 1) -> None:
+        """Pre-flight quota check WITHOUT metering — call before starting work
+        so a quota breach never aborts work that already happened."""
+        limits = {"research_jobs": PLANS[plan]["research_jobs_month"],
+                  "inference_jobs": PLANS[plan]["inference_jobs_month"],
+                  "alerts_day": PLANS[plan]["alerts_day"]}
+        if metric not in limits:
+            return
+        if metric == "alerts_day":
+            used = self.store.usage_by_day(workspace_id, "alerts_delivered",
+                                           date.today().isoformat())
+        else:
+            used = self.store.usage_total(workspace_id, metric, self.month_start())
+        if used + qty > limits[metric]:
+            raise QuotaError(workspace_id, metric, used, limits[metric])
+
     def check_and_meter(self, workspace_id: str, plan: str, metric: str,
                         qty: float = 1, ref: str = "") -> None:
         limits = {"research_jobs": PLANS[plan]["research_jobs_month"],
@@ -104,6 +121,13 @@ class Metering:
             if used + qty > limits[metric]:
                 raise QuotaError(workspace_id, metric, used, limits[metric])
         self.store.meter(workspace_id, metric, qty, ref)
+
+    @staticmethod
+    def effective_alert_budget(plan: str) -> int:
+        """Plan-level per-day alert ceiling — the single source of truth that
+        workspace alert prefs must be capped to (prevents two disagreeing
+        budgets: one at dispatch time, one at metering time)."""
+        return int(PLANS[plan]["alerts_day"])
 
     def research(self, workspace_id: str, plan: str, ref: str = "") -> None:
         self.check_and_meter(workspace_id, plan, "research_jobs", 1, ref)

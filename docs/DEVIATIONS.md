@@ -41,13 +41,14 @@ universe = csi300/csi500, horizon = 1 day. Point-in-time correctness, corporate
 actions, and survivorship hygiene are at the mercy of the dump — stated in
 pricing docs (§20) and in the dashboard footer.
 
-## 4. Walk-forward folds are calendar-expanding, not purged/embargoed
+## 4. Walk-forward folds: purged and embargoed (fixed in v0.1.1)
 
-Labels overlap (1d and 5d forward returns) but folds are contiguous calendar
-blocks; leakage across fold boundaries is possible at the edges. The gate
-(*sign stability + OOS decay across folds*) still rejects what the LightGBM
-1d candidate produced (2/3 folds sign-flipped → `rejected`). Purged K-fold is a
-known upgrade, not a rewrite: swap `engine.walk_forward` internals.
+Originally calendar-expanding with no purge (leakage risk). Fixed: each fold
+trains up to `valid_start - 1`, validates on a **held-out** 10-day slice
+(never inside the train window), and tests on the next block with the first
+`label_horizon_days` (default 2) test days **embargoed** so 1d/5d forward-return
+labels never straddle the boundary. IC is also now the standard per-date
+cross-sectional mean (pooled correlation retained as `ic_pooled`).
 
 ## 5. Validation gates are plan defaults, not per-customer yet
 

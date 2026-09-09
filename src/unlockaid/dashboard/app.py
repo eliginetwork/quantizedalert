@@ -138,16 +138,7 @@ def build_app(platform_cfg: PlatformConfig, store: Optional[Store] = None) -> Fa
                              f"model-weighted score: {pfo.get('weighted_model_score') if pfo.get('weighted_model_score') is not None else 'n/a'} · "
                              f"top picks: {', '.join(t['instrument'] for t in (pfo.get('top10') or [])[:5])}")
             # per-day history
-            import sqlite3
-            with store._conn() as c:
-                rows = c.execute(
-                    "SELECT asof, ok, payload FROM daily_runs WHERE workspace_id=?"
-                    " ORDER BY asof DESC LIMIT 10", (ws,)).fetchall()
-            for r in rows:
-                pl = json.loads(r["payload"]) if r["payload"] else {}
-                history.append({"asof": r["asof"], "ok": bool(r["ok"]),
-                                "n_pred": pl.get("n_predictions", 0),
-                                "n_alerts": sum(1 for a in pl.get("alerts", []) if a.get("deliver"))})
+            history = store.recent_daily_runs(ws, limit=10)
         model_desc = ""
         model_id = run["model_id"] if run else "not deployed"
         if run:

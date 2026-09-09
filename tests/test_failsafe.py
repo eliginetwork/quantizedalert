@@ -31,6 +31,9 @@ class BoomEngine:
     def build_dataset(self, *a, **k):
         raise QlibExecutionError("qlib dataset unavailable")
 
+    def list_instruments(self, *a, **k):
+        raise QlibExecutionError("qlib instruments unavailable")
+
     def load_model(self, *a, **k):
         raise QlibExecutionError("qlib model artifact load failed")
 

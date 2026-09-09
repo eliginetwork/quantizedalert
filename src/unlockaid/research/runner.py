@@ -89,6 +89,10 @@ class ResearchRunner:
         payload["workspace_id"] = cfg.workspace_id
         self.store.put_model(payload)
         self._runs[model_id] = {"backtest": bt, "ic": ic, "dataset_cfg": True}
+        self.store.put_job(new_id("job"), cfg.workspace_id, "research", "done",
+                           result={"model_id": model_id, "ic": ic,
+                                   "information_ratio": bt["information_ratio"],
+                                   "engine_source": "qlib"})
         if meter:
             meter(cfg.workspace_id, "research_jobs", 1, ref=model_id)
         logger.info("trained %s: IC=%.4f IR=%.2f", model_id, ic["ic"],
@@ -132,7 +136,7 @@ class ResearchRunner:
             flags.append(f"weak OOS IC {ic['ic']:.3f}")
         if ic["rank_ic"] < 0:
             flags.append("negative rank IC")
-        if abs(bt["information_ratio"]) < gates["min_ir"]:
+        if bt["information_ratio"] < gates["min_ir"]:
             flags.append(f"IR {bt['information_ratio']:.2f} below gate")
         if len(icirs) >= 2:
             if ic_std > gates["max_ic_std"]:
@@ -158,13 +162,18 @@ class ResearchRunner:
                    "max_drawdown": bt["max_drawdown"],
                    "mean_turnover": bt["mean_turnover"],
                    "mean_cost": bt["mean_cost"]}
+        # structured walk-forward verdict — computed from fold stats directly,
+        # never by string-matching flag texts.
+        wf_stable = (len(icirs) < 2
+                     or (ic_std <= gates["max_ic_std"]
+                         and sign_flips == 0
+                         and degradation <= gates["max_degradation"]))
         gate_results = {
             "min_ic": metrics["ic"] >= gates["min_ic"],
-            "min_ir": abs(metrics["information_ratio"]) >= gates["min_ir"],
+            "min_ir": metrics["information_ratio"] >= gates["min_ir"],
             "max_dd": metrics["max_drawdown"] >= gates["min_maxdd"],
             "turnover": metrics["mean_turnover"] <= gates["max_turnover"],
-            "wf_stable": not any(("unstable" in f) or ("sign flips" in f)
-                                 or ("degradation" in f) for f in flags),
+            "wf_stable": bool(wf_stable),
         }
         passed = all(gate_results.values()) and not flags
         status = ModelStatus.VALIDATED if passed else ModelStatus.REJECTED
@@ -179,6 +188,9 @@ class ResearchRunner:
                                              "degradation": degradation},
                                   sensitivity=sens,
                                   gate_results=gate_results).to_dict()})
+        self.store.put_job(new_id("job"), cfg.workspace_id, "validation", "done",
+                           result={"model_id": model_id, "passed": passed,
+                                   "gates": {k: bool(v) for k, v in gate_results.items()}})
         return ValidationResult(
             model_id=model_id, passed=passed, metrics=metrics, walk_forward=wf,
             overfit_flags=flags,

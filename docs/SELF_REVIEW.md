@@ -1,7 +1,17 @@
 # Objective Self-Review — UnlockAid v0.1.0
 
 Per-section verdict against the business objective. Evidence: BUILD_EVIDENCE.md,
-DEVIATIONS.md, `pytest tests/` (22 passed), live commands.
+DEVIATIONS.md, `pytest tests/` (31 passed), live commands.
+
+> v0.1.1 review pass: all high/medium findings fixed — signed IR gate (a
+> negative-IR backtest can no longer validate), daily health check now resolves
+> the universe (was vacuous for universe-only workspaces), quota breaches
+> pre-flight instead of post-delivery aborts, tar extraction hardened,
+> walk-forward purged/embargoed with held-out valid slice, per-day
+> cross-sectional IC, structured walk-forward verdict (no flag-string matching),
+> DSA `src.*` namespace purged, AlertDeliveryError reachable, `jobs` table
+> wired, `rank` keyword quoted, alert budget unified with plan quota, config
+> env read at call time, dashboard uses Store API. See tests/test_fixes.py.
 
 | § | Requirement | Status | Notes |
 |---|---|---|---|

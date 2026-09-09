@@ -44,23 +44,29 @@ def refresh_dump(provider_uri: str, url: str = QLIB_DUMP_URL,
             return {"status": "fresh", "age_days": age.days, "path": provider_uri}
     import requests
     sess = session or requests
-    tmp = tempfile.mktemp(suffix=".tar.gz")
+    tmp = tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False)
+    tmp_path = tmp.name
+    tmp.close()
     try:
-        logger.info("downloading qlib data dump -> %s", tmp)
+        logger.info("downloading qlib data dump -> %s", tmp_path)
         with sess.get(url, stream=True, timeout=600, allow_redirects=True) as r:
             r.raise_for_status()
-            with open(tmp, "wb") as f:
+            with open(tmp_path, "wb") as f:
                 nbytes = 0
                 for chunk in r.iter_content(1 << 20):
                     f.write(chunk)
                     nbytes += len(chunk)
         os.makedirs(provider_uri, exist_ok=True)
-        with tarfile.open(tmp, "r:gz") as t:
-            t.extractall(provider_uri)  # archive root = calendars/features/instruments
+        with tarfile.open(tmp_path, "r:gz") as t:
+            try:
+                # refuse members outside the extraction root (path traversal)
+                t.extractall(provider_uri, filter="data")
+            except TypeError:  # Python < 3.11.4 has no filter kwarg
+                t.extractall(provider_uri)
         return {"status": "refreshed", "bytes": nbytes, "path": provider_uri}
     finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def check_health(engine: QlibEngine, universe: str, instruments: list[str],

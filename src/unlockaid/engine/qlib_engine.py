@@ -218,18 +218,46 @@ class QlibEngine:
         return test_pred, meta
 
     def ic(self, dataset: Any, pred: pd.Series, segment: str = "test") -> dict[str, float]:
-        """Information coefficient — computed on qlib-prepared labels."""
+        """Information coefficient — computed on qlib-prepared labels.
+
+        Primary metric is the standard per-date cross-sectional IC, averaged
+        across dates (each trading day contributes equally). A pooled
+        all-pairs correlation is kept alongside for reference only.
+        """
         label = dataset.prepare(segment, col_set="label")["LABEL0"]
         s = pred.reindex(label.index)
         mask = label.notna() & s.notna()
         if mask.sum() < 10:
-            return {"ic": float("nan"), "rank_ic": float("nan"), "n": int(mask.sum())}
+            return {"ic": float("nan"), "rank_ic": float("nan"),
+                    "ic_pooled": float("nan"), "n": int(mask.sum()),
+                    "n_days": 0}
         y, x = label[mask].to_numpy(), s[mask].to_numpy()
-        ic = float(np.corrcoef(x, y)[0, 1])
-        rank_ic = float(pd.Series(x).corr(pd.Series(y), method="spearman"))
-        return {"ic": ic, "rank_ic": rank_ic, "n": int(mask.sum())}
+        ic_pooled = float(np.corrcoef(x, y)[0, 1])
+        df = pd.DataFrame({"x": x, "y": y},
+                          index=label[mask].index)
+        dates = df.index.get_level_values("datetime")
+        daily_ic, daily_ric = [], []
+        for _, g in df.groupby(dates):
+            if len(g) < 5:
+                continue  # too few names for a meaningful cross-section
+            gx, gy = g["x"].to_numpy(), g["y"].to_numpy()
+            if gx.std() < 1e-12 or gy.std() < 1e-12:
+                continue
+            daily_ic.append(float(np.corrcoef(gx, gy)[0, 1]))
+            daily_ric.append(float(
+                pd.Series(gx).corr(pd.Series(gy), method="spearman")))
+        if daily_ic:
+            ic = float(np.mean(daily_ic))
+            rank_ic = float(np.mean(daily_ric)) if daily_ric else ic
+        else:
+            ic, rank_ic = ic_pooled, ic_pooled
+        return {"ic": ic, "rank_ic": rank_ic, "ic_pooled": ic_pooled,
+                "n": int(mask.sum()), "n_days": len(daily_ic)}
 
     def save_model(self, model: Any, path: str) -> str:
+        # SECURITY NOTE: dill artifacts execute arbitrary code on load. Acceptable
+        # for single-tenant v0.1 (operator-owned artifact dir); must be replaced
+        # with a signed/trusted format before any multi-tenant artifact sharing.
         import dill
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as f:
@@ -299,23 +327,35 @@ class QlibEngine:
     def walk_forward(self, factor_set: str, instruments: str | list[str],
                      model_type: str, hyperparameters: dict,
                      start: str, end: str, n_splits: int = 3,
+                     label_horizon_days: int = 2,
                      recorder_dir: str = "mlruns") -> list[dict[str, Any]]:
-        """Expanding-window walk-forward: train on all history, test on the next
-        contiguous block. Real overfitting defense (Layer C / §3)."""
+        """Expanding-window walk-forward with purge + embargo.
+
+        Per fold: train on all history up to (tr_end - valid_days - 1),
+        validate on `valid_days` held-out days (NOT inside the train window),
+        test on the next block, with the first `label_horizon_days` test days
+        dropped (embargo) so forward-return labels never straddle the boundary.
+        """
         self.init()
         cal = [d.strftime("%Y-%m-%d") for d in self.calendar(start, end)]
-        if len(cal) < n_splits + 20:
-            raise QlibExecutionError("not enough calendar days for walk-forward")
+        valid_days = 10
+        min_len = n_splits * (valid_days + label_horizon_days) + 40
+        if len(cal) < min_len:
+            raise QlibExecutionError(
+                f"not enough calendar days for walk-forward ({len(cal)} < {min_len})")
         # reserve the last 60% of the window for out-of-sample folds
         anchor = int(len(cal) * 0.4)
         blocks = np.linspace(anchor, len(cal) - 1, n_splits + 1).astype(int)
         folds: list[dict[str, Any]] = []
         for i in range(n_splits):
             tr_end, te_start, te_end = blocks[i], blocks[i], blocks[i + 1]
+            va_start = max(0, tr_end - valid_days + 1)
+            train_end = va_start - 1          # valid is strictly out-of-train
+            embargo_start = min(te_start + label_horizon_days, te_end)
             segments = {
-                "train": [cal[0], cal[tr_end]],
-                "valid": [cal[max(0, tr_end - 10)], cal[tr_end]],
-                "test": [cal[te_start + 1], cal[te_end]],
+                "train": [cal[0], cal[train_end]],
+                "valid": [cal[va_start], cal[tr_end]],
+                "test": [cal[embargo_start], cal[te_end]],
             }
             ds = self.build_dataset(factor_set, instruments, [start, end],
                                     [start, segments["train"][1]], segments)
@@ -324,7 +364,10 @@ class QlibEngine:
                                     f"walk-forward-{i}", recorder_dir)
             stats = self.ic(ds, pred, "test")
             folds.append({"fold": i, "train": segments["train"],
-                          "test": segments["test"], "recorder_id": meta["recorder_id"],
+                          "valid": segments["valid"],
+                          "test": segments["test"],
+                          "embargo_days": label_horizon_days,
+                          "recorder_id": meta["recorder_id"],
                           **stats})
             logger.info("walk-forward fold %d (%s..%s): IC=%.4f",
                         i, *segments["test"], stats["ic"])
