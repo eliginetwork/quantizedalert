@@ -18,10 +18,10 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
-from unlockaid.schemas import AlertDecision, AlertEvent, Severity
-from unlockaid.store import Store, utcnow
+from quantizedalert.schemas import AlertDecision, AlertEvent, Severity
+from quantizedalert.store import Store, utcnow
 
-logger = logging.getLogger("unlockaid.alerts")
+logger = logging.getLogger("quantizedalert.alerts")
 
 # weights for value score (sum to 1.0)
 WEIGHTS = {
@@ -178,10 +178,10 @@ class AlertIntelligence:
             decisions.append(AlertDecision(
                 event=e, deliver=deliver, suppress_reason=reason,
                 channels=channels, delivered=delivered,
-                engine_source=f"unlockaid+{self.alerter.engine_source}"))
+                engine_source=f"quantizedalert+{self.alerter.engine_source}"))
         return decisions
 
     @staticmethod
     def _render(e: AlertEvent) -> str:
         return (f"### [{e.severity.value.upper()}] {e.title}\n\n"
-                f"{e.body_md}\n\n_{e.kind} · UnlockAid_\n")
+                f"{e.body_md}\n\n_{e.kind} · QuantizedAlert_\n")

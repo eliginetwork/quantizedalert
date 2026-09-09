@@ -13,10 +13,10 @@ from collections.abc import Callable
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from unlockaid.config import WorkspaceConfig
-from unlockaid.store import Store
+from quantizedalert.config import WorkspaceConfig
+from quantizedalert.store import Store
 
-logger = logging.getLogger("unlockaid.deploy")
+logger = logging.getLogger("quantizedalert.deploy")
 
 
 class DeployScheduler:
@@ -34,7 +34,7 @@ class DeployScheduler:
             ok = getattr(res, "ok", True)
             logger.info("scheduled run %s ok=%s", workspace_id, ok)
             if not ok:
-                webhook = os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
+                webhook = os.environ.get("QUANTIZEDALERT_FAILURE_WEBHOOK") or os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
                 if webhook:
                     import requests
                     try:
@@ -44,7 +44,7 @@ class DeployScheduler:
                         pass
         except Exception as e:
             logger.exception("scheduled run failed for %s", workspace_id)
-            webhook = os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
+            webhook = os.environ.get("QUANTIZEDALERT_FAILURE_WEBHOOK") or os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
             if webhook:
                 import requests
                 try:

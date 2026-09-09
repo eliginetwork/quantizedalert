@@ -1,6 +1,6 @@
-# UnlockAid Portability & End-to-End Deployment Guide
+# QuantizedAlert Portability & End-to-End Deployment Guide
 
-This guide describes how to replicate, deploy, and run the **UnlockAid** project from scratch on any fresh Linux machine (Ubuntu 22.04+, Debian 12+, RHEL 9+, etc.).
+This guide describes how to replicate, deploy, and run the **QuantizedAlert** project from scratch on any fresh Linux machine (Ubuntu 22.04+, Debian 12+, RHEL 9+, etc.).
 
 ---
 
@@ -8,15 +8,15 @@ This guide describes how to replicate, deploy, and run the **UnlockAid** project
 
 ### Does this project use LLMs?
 **Yes, but strictly for natural-language prose explanation.**
-- **All quant computations are 100% deterministic:** Factor computation (Alpha158), model training (LightGBM, Ridge, Lasso), signal inference, walk-forward validation, information ratio (IR), Sharpe, drawdown, portfolio concentration, and alert gating are executed using deterministic code (`qlib`, `numpy`, `pandas`, `scipy`). UnlockAid adheres to an **anti-quack principle**: LLMs **never** generate trading signals, predict numbers, or invent financial data.
-- **Where LLMs are used:** Only in `ResearchExplanationAgent` (invoked by `unlockaid explain <workspace> <model>`). It translates numerical backtest and validation metrics into plain English for non-specialist stakeholders.
-- **Graceful Fallback:** If no LLM is configured or if the LLM endpoint is down, UnlockAid automatically and seamlessly outputs deterministic template prose tagged with `[engine_source=template]` without crashing.
+- **All quant computations are 100% deterministic:** Factor computation (Alpha158), model training (LightGBM, Ridge, Lasso), signal inference, walk-forward validation, information ratio (IR), Sharpe, drawdown, portfolio concentration, and alert gating are executed using deterministic code (`qlib`, `numpy`, `pandas`, `scipy`). QuantizedAlert adheres to an **anti-quack principle**: LLMs **never** generate trading signals, predict numbers, or invent financial data.
+- **Where LLMs are used:** Only in `ResearchExplanationAgent` (invoked by `quantizedalert explain <workspace> <model>`). It translates numerical backtest and validation metrics into plain English for non-specialist stakeholders.
+- **Graceful Fallback:** If no LLM is configured or if the LLM endpoint is down, QuantizedAlert automatically and seamlessly outputs deterministic template prose tagged with `[engine_source=template]` without crashing.
 
 ### Are LLM settings hardcoded?
 **No.** All LLM settings are fully configurable through standard environment variables in `.env`.
 
 ### OpenAI-Compatible Endpoint Support
-UnlockAid natively connects to **any OpenAI-compatible API endpoint** using standard variables:
+QuantizedAlert natively connects to **any OpenAI-compatible API endpoint** using standard variables:
 
 | Variable | Description | Default |
 |---|---|---|
@@ -24,7 +24,7 @@ UnlockAid natively connects to **any OpenAI-compatible API endpoint** using stan
 | `OPENAI_API_KEY` | API Key for the endpoint | `sk-no-key-required` (if unset) |
 | `OPENAI_BASE_URL` | Base URL of the OpenAI-compatible endpoint | `https://api.openai.com/v1` |
 
-*(Note: Legacy aliases `UNLOCKAID_LLM_MODEL`, `UNLOCKAID_LLM_API_KEY`, and `UNLOCKAID_LLM_BASE_URL` are also supported).*
+*(Note: Aliases `QUANTIZEDALERT_LLM_MODEL`, `QUANTIZEDALERT_LLM_API_KEY`, `QUANTIZEDALERT_LLM_BASE_URL`, and legacy `UNLOCKAID_LLM_*` are also supported).*
 
 #### Provider Configuration Examples in `.env`:
 
@@ -67,16 +67,16 @@ OPENAI_BASE_URL=https://openrouter.ai/api/v1
 
 ## 2. Component Repositories & Required Tree Structure
 
-UnlockAid orchestrates two external Class-1 assets plus market data:
+QuantizedAlert orchestrates two external Class-1 assets plus market data:
 
-1. **`unlockaid`** (this repo): Core quant orchestrator, CLI, SQLite WAL database, alert intelligence, dashboard.
+1. **`quantizedalert`** (this repo): Core quant orchestrator, CLI, SQLite WAL database, alert intelligence, dashboard.
 2. **`qlib`** (external repo): Microsoft's quantitative research engine (`github.com/microsoft/qlib`).
 3. **`daily_stock_analysis`** (DSA, external repo): Notification delivery service (`NotificationService`) supporting 14 push channels (Telegram, Slack, Discord, Email, Feishu, Webhooks).
 4. **`qlib_data`** (market data): Daily binary dump for CSI300 (A-share data).
 
 ### Do the sibling repositories require LLM variables?
 - **`qlib`**: **NO.** It is a pure C++/Python machine learning and backtesting engine. No LLM variables.
-- **`daily_stock_analysis`**: **NO** (when driven by UnlockAid). While DSA standalone includes an LLM analyzer, UnlockAid **only** uses DSA's `NotificationService` for dispatching alerts to configured channels. It only needs alert channel tokens (e.g. `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, `CUSTOM_WEBHOOK_URLS`), not LLM keys.
+- **`daily_stock_analysis`**: **NO** (when driven by QuantizedAlert). While DSA standalone includes an LLM analyzer, QuantizedAlert **only** uses DSA's `NotificationService` for dispatching alerts to configured channels. It only needs alert channel tokens (e.g. `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, `CUSTOM_WEBHOOK_URLS`), not LLM keys.
 
 ---
 
@@ -91,7 +91,7 @@ On your target Linux box (e.g. under `/root` or `/home/<user>/workspace`):
 │   └── daily_stock_analysis/       # Git clone of Daily Stock Analysis
 │
 └── work/                           # (or any project directory)
-    └── unlockaid/                  # This repository
+    └── unlockaid/                  # Project repository directory
         ├── .env                    # Environment file (from .env.example)
         ├── .venv/                  # Python 3.11 virtual environment
         ├── alembic/                # Database migrations
@@ -99,17 +99,17 @@ On your target Linux box (e.g. under `/root` or `/home/<user>/workspace`):
         │   ├── platform.yaml       # Platform asset paths
         │   └── workspaces/         # Workspace configs (demo.yaml, etc.)
         ├── data/
-        │   ├── unlockaid.db        # SQLite database (auto-created)
+        │   ├── quantizedalert.db   # SQLite database (auto-created)
         │   ├── artifacts/          # Trained models, metrics, backtests
         │   └── backups/            # Database backups
         ├── repos/                  # Symlinks to <base_dir>/repos (or relative paths)
         │   ├── qlib -> ../../repos/qlib
         │   └── daily_stock_analysis -> ../../repos/daily_stock_analysis
         ├── scripts/                # Utility and smoke test scripts
-        └── src/unlockaid/          # Core Python package
+        └── src/quantizedalert/     # Core Python package
 ```
 
-*(Note: Market data dump defaults to `~/.qlib/qlib_data/cn_data` or can be overridden via `UNLOCKAID_QLIB_URI` in `.env`)*.
+*(Note: Market data dump defaults to `~/.qlib/qlib_data/cn_data` or can be overridden via `QUANTIZEDALERT_QLIB_URI` in `.env`)*.
 
 ---
 
@@ -158,13 +158,13 @@ cd $BASE_DIR/repos
 git clone https://github.com/mizikakao/daily_stock_analysis.git daily_stock_analysis
 # (or rsync your local copy: rsync -avz /source/daily_stock_analysis/ $BASE_DIR/repos/daily_stock_analysis/)
 
-# 3. Copy or clone UnlockAid
+# 3. Copy or clone QuantizedAlert
 cd $BASE_DIR/work
 # rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude '.git' /source/unlockaid/ $BASE_DIR/work/unlockaid/
-# or git clone <your-unlockaid-repo-url> unlockaid
+# or git clone <your-repo-url> unlockaid
 ```
 
-In the `unlockaid` directory, set up the convenience symlinks pointing to sibling repos:
+In the project directory, set up the convenience symlinks pointing to sibling repos:
 ```bash
 cd $BASE_DIR/work/unlockaid
 mkdir -p repos
@@ -194,7 +194,7 @@ pip install -r requirements.lock
 # Install qlib in editable mode into the virtual environment
 pip install -e $BASE_DIR/repos/qlib
 
-# Install unlockaid in editable mode
+# Install quantizedalert in editable mode
 pip install -e .
 ```
 
@@ -202,12 +202,12 @@ pip install -e .
 
 ### Step 4 — Fetch / Copy Market Data Dump
 
-UnlockAid runs on CSI300 market data. You have two options:
+QuantizedAlert runs on CSI300 market data. You have two options:
 
-#### Option A: Automatic download using UnlockAid CLI
+#### Option A: Automatic download using QuantizedAlert CLI
 ```bash
 cd $BASE_DIR/work/unlockaid
-.venv/bin/unlockaid data refresh
+.venv/bin/quantizedalert data refresh
 ```
 This automatically downloads the official open qlib binary dump into `~/.qlib/qlib_data/cn_data`.
 
@@ -231,17 +231,17 @@ cp .env.example .env
 Edit `.env`:
 ```bash
 # Base paths
-UNLOCKAID_QLIB_URI=~/.qlib/qlib_data/cn_data
+QUANTIZEDALERT_QLIB_URI=~/.qlib/qlib_data/cn_data
 DSA_PATH=./repos/daily_stock_analysis
 QLIB_PATH=./repos/qlib
 
 # Server port & log level
-UNLOCKAID_PORT=8765
-UNLOCKAID_LOG=INFO
-UNLOCKAID_DRY_RUN=0
+QUANTIZEDALERT_PORT=8765
+QUANTIZEDALERT_LOG=INFO
+QUANTIZEDALERT_DRY_RUN=0
 
 # Optional Dashboard token (leave blank for open dev mode)
-UNLOCKAID_DASHBOARD_TOKEN=
+QUANTIZEDALERT_DASHBOARD_TOKEN=
 
 # OpenAI-Compatible LLM (Optional — leave blank for deterministic template mode)
 OPENAI_MODEL=
@@ -283,7 +283,7 @@ Run the verification sequence to prove that everything is operational:
 ### 1. Run Automated CI Suite
 ```bash
 make ci
-# Expected: ruff check passes with 0 errors, pytest passes 38+ tests.
+# Expected: ruff check passes with 0 errors, pytest passes 44 tests.
 ```
 
 ### 2. Run Qlib Integration Smoke Test
@@ -298,7 +298,7 @@ make ci
 
 ### 3. Run Full End-to-End Quant Loop
 ```bash
-.venv/bin/unlockaid e2e e2ev --force
+.venv/bin/quantizedalert e2e e2ev --force
 # Expected output:
 #   [1/4] research+validate: mdl_... passed=True ic=... IR=...
 #   [2/4] deployed + daily inference: 300 predictions, ok=True
@@ -310,17 +310,17 @@ make ci
 ### 4. Verify LLM Explanation Polish
 ```bash
 # Extract model ID from the latest run
-MODEL_ID=$(sqlite3 data/unlockaid.db "SELECT model_id FROM models ORDER BY created_at DESC LIMIT 1;")
+MODEL_ID=$(sqlite3 data/quantizedalert.db "SELECT model_id FROM models ORDER BY created_at DESC LIMIT 1;")
 
 # Run explanation agent
-.venv/bin/unlockaid explain e2ev $MODEL_ID
+.venv/bin/quantizedalert explain e2ev $MODEL_ID
 # If no LLM configured: outputs exact template summary with [engine_source=template]
 # If LLM configured: outputs polished explanation using your configured OpenAI-compatible endpoint
 ```
 
 ### 5. Launch Web Dashboard
 ```bash
-.venv/bin/unlockaid serve --port 8765
+.venv/bin/quantizedalert serve --port 8765
 # Open browser at http://localhost:8765
 ```
 
@@ -331,10 +331,10 @@ MODEL_ID=$(sqlite3 data/unlockaid.db "SELECT model_id FROM models ORDER BY creat
 - [ ] Installed Python 3.11 and build tools (`build-essential`).
 - [ ] Cloned/copied `qlib` to `$BASE_DIR/repos/qlib`.
 - [ ] Cloned/copied `daily_stock_analysis` to `$BASE_DIR/repos/daily_stock_analysis`.
-- [ ] Copied `unlockaid` to `$BASE_DIR/work/unlockaid`.
+- [ ] Copied project repository to `$BASE_DIR/work/unlockaid`.
 - [ ] Created Python 3.11 virtualenv `.venv` and installed `requirements.lock`.
 - [ ] Installed `qlib` editable via `pip install -e ../../repos/qlib`.
 - [ ] Market data downloaded or copied to `~/.qlib/qlib_data/cn_data`.
 - [ ] Created `.env` with OpenAI-compatible endpoint variables (or left blank for template mode).
 - [ ] Executed `alembic upgrade head`.
-- [ ] Verified with `make ci` and `.venv/bin/unlockaid e2e e2ev --force`.
+- [ ] Verified with `make ci` and `.venv/bin/quantizedalert e2e e2ev --force`.

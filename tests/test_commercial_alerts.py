@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import pytest
 
-from unlockaid.alerts.intelligence import AlertIntelligence
-from unlockaid.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
-from unlockaid.config import AlertPrefs
-from unlockaid.schemas import AlertEvent, Severity, new_id
-from unlockaid.store import Store
+from quantizedalert.alerts.intelligence import AlertIntelligence
+from quantizedalert.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
+from quantizedalert.config import AlertPrefs
+from quantizedalert.schemas import AlertEvent, Severity, new_id
+from quantizedalert.store import Store
 
 
 @pytest.fixture()

@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from unlockaid.config import AlertPrefs, PlatformConfig, WorkspaceConfig
-from unlockaid.store import Store
+from quantizedalert.config import AlertPrefs, PlatformConfig, WorkspaceConfig
+from quantizedalert.store import Store
 
 PROVIDER = Path(os.path.expanduser("~/.qlib/qlib_data/cn_data"))
 HAS_QLIB_DATA = (PROVIDER / "calendars" / "day.txt").exists()
@@ -43,7 +43,7 @@ def store(pcfg):
 # ---------- SC1: qlib executes inside the project ----------
 @live
 def test_sc1_qlib_asset_smoke(pcfg):
-    from unlockaid.engine.qlib_engine import QlibEngine
+    from quantizedalert.engine.qlib_engine import QlibEngine
     e = QlibEngine(provider_uri=str(PROVIDER))
     cal = e.calendar()
     assert len(cal) > 250
@@ -51,7 +51,7 @@ def test_sc1_qlib_asset_smoke(pcfg):
                     str(cal[-5]), str(cal[-1]))
     assert float(fx["$close"].dropna().iloc[-1]) > 0
     # train + backtest a tiny deterministic ridge run, engine_source must be qlib
-    from unlockaid.research.runner import ResearchRunner
+    from quantizedalert.research.runner import ResearchRunner
     cfg = WorkspaceConfig(workspace_id="sc1", universe="csi300",
                           model_type="ridge", hyperparameters={"alpha": 1000.0},
                           factor_set="Alpha158")
@@ -91,7 +91,7 @@ def webhook_sink():
 @pytest.mark.skipif(not HAS_DSA, reason="DSA repo not present")
 def test_sc2_dsa_alert_delivery(webhook_sink, store, monkeypatch):
     monkeypatch.setenv("CUSTOM_WEBHOOK_URLS", webhook_sink)
-    from unlockaid.alerts.dsa_dispatch import DSAlerter
+    from quantizedalert.alerts.dsa_dispatch import DSAlerter
     alerter = DSAlerter(dsa_path=DSA_PATH)   # DSA config reads env at init
     results = alerter.dispatch("### sc2\nlive delivery", ["custom_webhook"])
     assert results["custom_webhook"] is True
@@ -102,8 +102,8 @@ def test_sc2_dsa_alert_delivery(webhook_sink, store, monkeypatch):
 @live
 def test_sc3_mvp_loop_sections(pcfg, store):
     """Deployment gating + registry lineage + daily-run persistence — the
-    loop's DB-observable states (the live loop itself is `unlockaid e2e`)."""
-    from unlockaid.schemas import ModelRecord, ModelStatus
+    loop's DB-observable states (the live loop itself is `quantizedalert e2e`)."""
+    from quantizedalert.schemas import ModelRecord, ModelStatus
     rec = ModelRecord("mdl_sc3", "t", "v1", ModelStatus.CANDIDATE, "ds", "Alpha158",
                       {}, "exp1", None, None, "now")
     p = rec.to_dict()
@@ -119,14 +119,14 @@ def test_sc3_mvp_loop_sections(pcfg, store):
 
 # ---------- SC4: both Class-1 assets load-bearing under fault injection ----
 def test_sc4_fault_injection_class1(store):
-    from unlockaid.engine.qlib_engine import QlibExecutionError
+    from quantizedalert.engine.qlib_engine import QlibExecutionError
 
     class BoomEngine:
         def calendar(self, *a, **k): raise QlibExecutionError("qlib calendar unavailable")
         def features(self, *a, **k): raise QlibExecutionError("qlib features unavailable")
         def load_model(self, *a, **k): raise QlibExecutionError("qlib model artifact load failed")
-    from unlockaid.alerts.intelligence import AlertIntelligence
-    from unlockaid.analysis.daily import DailyPipeline
+    from quantizedalert.alerts.intelligence import AlertIntelligence
+    from quantizedalert.analysis.daily import DailyPipeline
     cfg = WorkspaceConfig(workspace_id="w4", alerts=AlertPrefs())
     store.put_model({"model_id": "m4", "name": "n", "version": "v",
                      "status": "validated", "dataset_ref": "d",
@@ -142,7 +142,7 @@ def test_sc4_fault_injection_class1(store):
                         AlertIntelligence(store, A(), cfg.alerts)).run(cfg)
     assert res.ok is False and res.error        # qlib asset: loud, recorded
     # DSA asset: missing service raises, no silent fallback
-    from unlockaid.alerts.dsa_dispatch import AlertDeliveryError, DSAlerter
+    from quantizedalert.alerts.dsa_dispatch import AlertDeliveryError, DSAlerter
     a = object.__new__(DSAlerter); a._service = None
     with pytest.raises(AlertDeliveryError):
         a.dispatch("x", ["slack"])
@@ -150,8 +150,8 @@ def test_sc4_fault_injection_class1(store):
 
 # ---------- SC5: alert intelligence suppresses; quiet hours; dedup ----------
 def test_sc5_alert_intelligence(store):
-    from unlockaid.alerts.intelligence import AlertIntelligence
-    from unlockaid.schemas import AlertEvent, Severity, new_id
+    from quantizedalert.alerts.intelligence import AlertIntelligence
+    from quantizedalert.schemas import AlertEvent, Severity, new_id
 
     class A:
         engine_source = "fake"
@@ -168,7 +168,7 @@ def test_sc5_alert_intelligence(store):
     assert d[0].event.title == "hi" and d[0].deliver      # value order, budget 1
     assert not d[1].deliver and "budget" in d[1].suppress_reason
     # quiet hours block LOW but not HIGH
-    from unlockaid.alerts.intelligence import in_quiet_hours
+    from quantizedalert.alerts.intelligence import in_quiet_hours
     assert in_quiet_hours(23 * 60, "22:00", "07:00")
     prefs2 = AlertPrefs(max_alerts_per_day=10, min_severity="low", min_score=0.0,
                         quiet_hours=("22:00", "07:00"), channels=["custom_webhook"])
@@ -186,7 +186,7 @@ def test_sc5_alert_intelligence(store):
 
 # ---------- SC6: lineage — predictions/alerts trace to model version ----------
 def test_sc6_registry_lineage(store):
-    from unlockaid.schemas import ModelRecord, ModelStatus
+    from quantizedalert.schemas import ModelRecord, ModelStatus
     rec = ModelRecord("mdl_sc6", "t6", "v9", ModelStatus.VALIDATED, "ds6",
                       "Alpha158", {"alpha": 1.0}, "exp-qlib-6", "/tmp/a",
                       {"passed": True}, "now")
@@ -208,9 +208,9 @@ def test_sc7_cli_front_door():
             "validate", "deploy", "daily", "alert-test", "serve", "scorecard",
             "economics", "registry", "e2e", "discover", "experiments", "explain"]
     for c in cmds:
-        r = subprocess.run([sys.executable, "-m", "unlockaid.cli"] + c.split()
+        r = subprocess.run([sys.executable, "-m", "quantizedalert.cli"] + c.split()
                            + ["--help"], capture_output=True, text=True)
-        assert r.returncode == 0, f"unlockaid {c} --help failed: {r.stderr[:200]}"
+        assert r.returncode == 0, f"quantizedalert {c} --help failed: {r.stderr[:200]}"
         assert "usage" in r.stdout.lower()
 
 
@@ -219,7 +219,7 @@ def test_sc7_cli_front_door():
 def test_sc8_overfit_detection(pcfg):
     """A model fit on labels it can trivially see must be flagged by the
     validation layer: same engine/data, leaky label = huge IC → audit flag."""
-    from unlockaid.agents.research import OverfitAuditAgent
+    from quantizedalert.agents.research import OverfitAuditAgent
     leaked = {"metrics": {"ic": 0.42, "rank_ic": 0.5},
               "walk_forward": [{"ic": 0.42}, {"ic": 0.40}],
               "stability": {"sign_flips": 0}, "sensitivity": {"ic_spread": 0.2}}
@@ -236,7 +236,7 @@ def test_sc8_overfit_detection(pcfg):
 
 # ---------- SC9: commercial gating + metering + margin ----------
 def test_sc9_commercial_metering(store):
-    from unlockaid.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
+    from quantizedalert.commercial.plans import PLANS, Metering, QuotaError, contribution_margin
     m = Metering(store)
     cap = PLANS["free"]["research_jobs_month"]
     for _ in range(cap):
@@ -256,7 +256,7 @@ def test_sc9_commercial_metering(store):
 def test_sc10_dashboard_contract(store, pcfg):
     from fastapi.testclient import TestClient
 
-    from unlockaid.dashboard.app import build_app
+    from quantizedalert.dashboard.app import build_app
     store.put_daily_run("w10", "2026-09-04", True, "mdl_x", None, {
         "workspace_id": "w10", "asof": "2026-09-04", "ok": True,
         "model_id": "mdl_x", "n_predictions": 3, "predictions": [],
@@ -271,7 +271,7 @@ def test_sc10_dashboard_contract(store, pcfg):
                     "models": ["mdl_x"], "deliver": True,
                     "suppress_reason": None, "channels": ["custom_webhook"],
                     "delivered": {"custom_webhook": True},
-                    "engine_source": "unlockaid+fake"}],
+                    "engine_source": "quantizedalert+fake"}],
         "engine_sources": {"research_engine": "qlib"}})
     store.record_alert({
         "event_id": "e1", "workspace_id": "w10", "kind": "signal_change",

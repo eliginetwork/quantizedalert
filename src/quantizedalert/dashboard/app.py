@@ -9,14 +9,14 @@ import os
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 
-from unlockaid.config import PlatformConfig, WorkspaceConfig
-from unlockaid.store import Store
+from quantizedalert.config import PlatformConfig, WorkspaceConfig
+from quantizedalert.store import Store
 
 
 def _require_token(authorization: str | None = Header(default=None),
                    x_api_key: str | None = Header(default=None)) -> None:
     """Require UNLOCKAID_DASHBOARD_TOKEN if it is set. If unset, allow (dev mode)."""
-    expected = os.environ.get("UNLOCKAID_DASHBOARD_TOKEN", "")
+    expected = os.environ.get("QUANTIZEDALERT_DASHBOARD_TOKEN") or os.environ.get("UNLOCKAID_DASHBOARD_TOKEN", "")
     if not expected:
         return  # dev mode: no token required
     provided = x_api_key or (authorization.removeprefix("Bearer ").strip() if authorization else "")
@@ -24,7 +24,7 @@ def _require_token(authorization: str | None = Header(default=None),
         raise HTTPException(status_code=401, detail="invalid or missing API token")
 
 _TEMPLATE = """<!doctype html>
-<html><head><meta charset="utf-8"><title>UnlockAid — {{ name }}</title>
+<html><head><meta charset="utf-8"><title>QuantizedAlert — {{ name }}</title>
 <style>
 :root{--bg:#0b0e14;--panel:#141a26;--ink:#e6edf3;--dim:#8b98a9;--gold:#d4a94e;--red:#e5534b;--green:#57ab5a;--blue:#4c8fd6}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,'Segoe UI',Roboto,sans-serif}
@@ -46,7 +46,7 @@ section{padding:6px 28px 22px}section h2{font-size:13px;text-transform:uppercase
 .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue);border-radius:3px}
 footer{padding:14px 28px;color:var(--dim);font-size:12px;border-top:1px solid #1f2733}
 </style></head><body>
-<header><h1>🔓 <b>UnlockAid</b> — {{ name }}</h1>
+<header><h1>⚡ <b>QuantizedAlert</b> — {{ name }}</h1>
 <span class="chip {{ status_cls }}">{{ status_text }}</span></header>
 <div class="grid">
 <div class="card"><h3>As-of</h3><div class="big">{{ asof }}</div><div class="neu">{{ n_pred }} instruments scored</div></div>
@@ -73,13 +73,13 @@ footer{padding:14px 28px;color:var(--dim);font-size:12px;border-top:1px solid #1
 <table><tr><th>Date</th><th>OK</th><th>Predictions</th><th>Delivered alerts</th></tr>
 {% for r in history %}<tr><td>{{ r.asof }}</td><td class="{{ 'pos' if r.ok else 'neg' }}">{{ '✓' if r.ok else '✗' }}</td><td>{{ r.n_pred }}</td><td>{{ r.n_alerts }}</td></tr>{% endfor %}</table></section>
 <section><h2>Portfolio intelligence</h2><div class="card">{{ portfolio }}</div></section>
-<footer>UnlockAid — research → backtest → validate → deploy → monitor → alert ·
+<footer>QuantizedAlert — research → backtest → validate → deploy → monitor → alert ·
 data: qlib {{ engine_qlib }} · delivery: daily_stock_analysis {{ engine_dsa }}</footer>
 </body></html>"""
 
 
 def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastAPI:
-    app = FastAPI(title="UnlockAid")
+    app = FastAPI(title="QuantizedAlert")
     from jinja2 import Template
     tpl = Template(_TEMPLATE)
     store = store or Store(platform_cfg.db_path)
@@ -183,7 +183,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             f"<li style='margin:6px 0'><a style='color:#4c8fd6' href='/w/{w}'>{w}</a></li>"
             for w in ws)
         return (f"<html><body style='background:#0b0e14;color:#e6edf3;font-family:sans-serif;"
-                f"padding:40px'><h1>🔓 UnlockAid</h1><p>Workspaces:</p><ul>{rows or '<li>none yet</li>'}</ul>"
+                f"padding:40px'><h1>⚡ QuantizedAlert</h1><p>Workspaces:</p><ul>{rows or '<li>none yet</li>'}</ul>"
                 f"<p style='color:#8b98a9'>REST: /api/&lt;ws&gt;/summary · /api/&lt;ws&gt;/alerts · /api/&lt;ws&gt;/predictions?asof=</p></body></html>")
 
     @app.get("/w/{ws}", response_class=HTMLResponse)

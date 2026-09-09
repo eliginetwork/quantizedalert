@@ -8,7 +8,7 @@ lint:
 	$(RUFF) check .
 
 type:
-	$(MYPY) src/unlockaid --ignore-missing-imports || true
+	$(MYPY) src/quantizedalert --ignore-missing-imports || true
 
 test:
 	$(PYTHON) -m pytest tests/ -q --timeout=60

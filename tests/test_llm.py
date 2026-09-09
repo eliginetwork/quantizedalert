@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from unlockaid.agents.research import ResearchExplanationAgent
+from quantizedalert.agents.research import ResearchExplanationAgent
 
 
 def test_research_explanation_default_template(monkeypatch):
     """When no LLM model is configured, returns deterministic template prose."""
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("QUANTIZEDALERT_LLM_MODEL", raising=False)
     monkeypatch.delenv("UNLOCKAID_LLM_MODEL", raising=False)
 
     agent = ResearchExplanationAgent()
@@ -68,9 +69,46 @@ def test_research_explanation_openai_compatible_success(monkeypatch):
         assert out == "Polished quant summary with exact numbers."
 
 
+def test_research_explanation_quantizedalert_alias(monkeypatch):
+    """QUANTIZEDALERT_LLM_MODEL is supported as alias for OPENAI_MODEL."""
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.setenv("QUANTIZEDALERT_LLM_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("QUANTIZEDALERT_LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("QUANTIZEDALERT_LLM_API_KEY", "ollama")
+
+    mock_resp = MagicMock()
+    mock_resp.choices = [MagicMock()]
+    mock_resp.choices[0].message.content = "Ollama polished explanation."
+
+    agent = ResearchExplanationAgent()
+    bt = {
+        "freq": "1d",
+        "ann_return": 0.15,
+        "information_ratio": 1.2,
+        "max_drawdown": -0.10,
+        "mean_turnover": 0.15,
+    }
+    ic = {"ic": 0.01, "rank_ic": 0.015, "n": 5000}
+    val = {"passed": False, "overfit_flags": ["high_turnover"]}
+
+    with patch("openai.OpenAI") as mock_openai_cls:
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_resp
+
+        out = agent.explain_run("test_model", bt, ic, val)
+
+        mock_openai_cls.assert_called_once_with(
+            api_key="ollama",
+            base_url="http://localhost:11434/v1",
+        )
+        assert out == "Ollama polished explanation."
+
+
 def test_research_explanation_legacy_alias(monkeypatch):
     """UNLOCKAID_LLM_MODEL is supported as alias for OPENAI_MODEL."""
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("QUANTIZEDALERT_LLM_MODEL", raising=False)
     monkeypatch.setenv("UNLOCKAID_LLM_MODEL", "gpt-4o-mini")
     monkeypatch.setenv("UNLOCKAID_LLM_BASE_URL", "http://localhost:11434/v1")
     monkeypatch.setenv("UNLOCKAID_LLM_API_KEY", "ollama")

@@ -15,9 +15,9 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from unlockaid.assets.dsa_path import dsa_importable, dsa_module
+from quantizedalert.assets.dsa_path import dsa_importable, dsa_module
 
-logger = logging.getLogger("unlockaid.dsa")
+logger = logging.getLogger("quantizedalert.dsa")
 
 # channel slug -> DSA sender method
 CHANNEL_METHODS = {

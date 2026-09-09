@@ -18,9 +18,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from unlockaid.schemas import AlertEvent, Severity, new_id
+from quantizedalert.schemas import AlertEvent, Severity, new_id
 
-logger = logging.getLogger("unlockaid.agents")
+logger = logging.getLogger("quantizedalert.agents")
 
 
 # --------------------------------------------------------------------------
@@ -261,19 +261,19 @@ class ResearchExplanationAgent:
         return text
 
     def _maybe_llm(self, text: str) -> str:
-        model = os.environ.get("OPENAI_MODEL") or os.environ.get("UNLOCKAID_LLM_MODEL")
+        model = os.environ.get("OPENAI_MODEL") or os.environ.get("QUANTIZEDALERT_LLM_MODEL") or os.environ.get("UNLOCKAID_LLM_MODEL")
         if not model:
             return text + " [engine_source=template]"
 
         api_key = (
             os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("UNLOCKAID_LLM_API_KEY")
+            or os.environ.get("QUANTIZEDALERT_LLM_API_KEY") or os.environ.get("UNLOCKAID_LLM_API_KEY")
             or "sk-no-key-required"
         )
         base_url = (
             os.environ.get("OPENAI_BASE_URL")
             or os.environ.get("OPENAI_API_BASE")
-            or os.environ.get("UNLOCKAID_LLM_BASE_URL")
+            or os.environ.get("QUANTIZEDALERT_LLM_BASE_URL") or os.environ.get("UNLOCKAID_LLM_BASE_URL")
         )
         prompt = (
             "Rewrite this quant research note for a sophisticated but non-specialist customer; "

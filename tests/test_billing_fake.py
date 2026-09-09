@@ -1,8 +1,8 @@
 """Stripe adapter contract, verified against an injected fake client."""
 import pytest
 
-from unlockaid.commercial.plans import StripeAdapter
-from unlockaid.store import Store
+from quantizedalert.commercial.plans import StripeAdapter
+from quantizedalert.store import Store
 
 
 class FakeStripe:
@@ -39,10 +39,23 @@ def test_customer_and_subscribe_flow(adapter, monkeypatch):
     a, store = adapter
     c = a.create_customer("w1", "x@y.z")
     assert c["id"] == "cus_w1"
-    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
+    monkeypatch.setenv("QUANTIZEDALERT_STRIPE_PRICES", '{"individual": "price_ind"}')
     sub = a.subscribe("w1", "individual")
     assert sub["id"] == "sub_1"
     cust = store.get_customer("w1")
+    assert cust["plan"] == "individual"
+    assert cust["stripe_subscription_id"] == "sub_1"
+
+
+def test_customer_and_subscribe_legacy_env_fallback(adapter, monkeypatch):
+    a, store = adapter
+    c = a.create_customer("w1_legacy", "x@y.z")
+    assert c["id"] == "cus_w1_legacy"
+    monkeypatch.delenv("QUANTIZEDALERT_STRIPE_PRICES", raising=False)
+    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind_legacy"}')
+    sub = a.subscribe("w1_legacy", "individual")
+    assert sub["id"] == "sub_1"
+    cust = store.get_customer("w1_legacy")
     assert cust["plan"] == "individual"
     assert cust["stripe_subscription_id"] == "sub_1"
 
@@ -51,14 +64,14 @@ def test_meter_event_reports_real_metric(adapter):
     a, store = adapter
     a.create_customer("w2", "u@v.w")
     r = a.report_usage("w2", "inference_jobs", 7)
-    assert r["recorded"] == "unlockaid_inference_jobs"
+    assert r["recorded"] == "quantizedalert_inference_jobs"
     assert r["value"] == "7"
 
 
 def test_subscribe_unknown_plan_raises(adapter, monkeypatch):
     a, _ = adapter
     a.create_customer("w3", "a@b.c")
-    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
+    monkeypatch.setenv("QUANTIZEDALERT_STRIPE_PRICES", '{"individual": "price_ind"}')
     with pytest.raises(ValueError, match="unknown plan"):
         a.subscribe("w3", "does_not_exist")
 
@@ -66,7 +79,7 @@ def test_subscribe_unknown_plan_raises(adapter, monkeypatch):
 def test_subscribe_missing_price_raises(adapter, monkeypatch):
     a, _ = adapter
     a.create_customer("w4", "d@e.f")
-    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
+    monkeypatch.setenv("QUANTIZEDALERT_STRIPE_PRICES", '{"individual": "price_ind"}')
     with pytest.raises(ValueError, match="no stripe price"):
         a.subscribe("w4", "professional")
 
@@ -85,7 +98,8 @@ def test_report_usage_float_precision(adapter):
 
 
 def test_price_ids_invalid_json_raises(monkeypatch):
-    from unlockaid.commercial.plans import _price_ids
+    from quantizedalert.commercial.plans import _price_ids
+    monkeypatch.delenv("QUANTIZEDALERT_STRIPE_PRICES", raising=False)
     monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", "{not json}")
     with pytest.raises(ValueError, match="not valid JSON"):
         _price_ids()
@@ -107,7 +121,7 @@ def test_handle_webhook_invalid_signature(adapter, monkeypatch):
 
 
 def test_enterprise_quota_is_effectively_unlimited(tmp_path):
-    from unlockaid.commercial.plans import Metering
+    from quantizedalert.commercial.plans import Metering
     store = Store(str(tmp_path / "e.db"))
     m = Metering(store)
     # Enterprise has 1e9 quota — metering 1e6 jobs must not raise

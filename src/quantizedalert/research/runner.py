@@ -12,12 +12,18 @@ import uuid
 
 import numpy as np
 
-from unlockaid.config import WorkspaceConfig
-from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
-from unlockaid.schemas import BacktestReport, ModelRecord, ModelStatus, ValidationResult, new_id
-from unlockaid.store import Store, utcnow
+from quantizedalert.config import WorkspaceConfig
+from quantizedalert.engine.qlib_engine import QlibEngine, QlibExecutionError
+from quantizedalert.schemas import (
+    BacktestReport,
+    ModelRecord,
+    ModelStatus,
+    ValidationResult,
+    new_id,
+)
+from quantizedalert.store import Store, utcnow
 
-logger = logging.getLogger("unlockaid.research")
+logger = logging.getLogger("quantizedalert.research")
 
 DEFAULT_GATES = {
     "min_ic": 0.005,          # tiny but real signal; §25: no single-Sharpe kill rule
@@ -45,12 +51,17 @@ class ResearchRunner:
         Returns a CANDIDATE ModelRecord (promotion happens in validate()).
         """
         # Gate: refuse to train on stale data ( >5 days old)
-        from unlockaid.data.health import stale_ok
+        from quantizedalert.data.health import stale_ok
         cal = self.engine.calendar()
-        if not os.environ.get("UNLOCKAID_ALLOW_STALE") and not getattr(cfg, "allow_stale", False) and not stale_ok(cal):
+        allow_stale = (
+            os.environ.get("QUANTIZEDALERT_ALLOW_STALE")
+            or os.environ.get("UNLOCKAID_ALLOW_STALE")
+            or getattr(cfg, "allow_stale", False)
+        )
+        if not allow_stale and not stale_ok(cal):
             raise QlibExecutionError(
                 f"refusing to train: qlib calendar is stale (last bar {cal[-1] if cal else 'empty'}). "
-                "Run `unlockaid data refresh` or `unlockaid data health <ws>`."
+                "Run `quantizedalert data refresh` or `quantizedalert data health <ws>`."
             )
         self.engine.init()
         model_id = new_id("mdl")

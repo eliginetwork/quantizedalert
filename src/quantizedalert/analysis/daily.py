@@ -19,11 +19,11 @@ import os
 import numpy as np
 import pandas as pd
 
-from unlockaid.alerts.intelligence import AlertIntelligence
-from unlockaid.config import WorkspaceConfig
-from unlockaid.data.health import check_health
-from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
-from unlockaid.schemas import (
+from quantizedalert.alerts.intelligence import AlertIntelligence
+from quantizedalert.config import WorkspaceConfig
+from quantizedalert.data.health import check_health
+from quantizedalert.engine.qlib_engine import QlibEngine, QlibExecutionError
+from quantizedalert.schemas import (
     AlertEvent,
     DailyRunResult,
     DataHealthStatus,
@@ -32,9 +32,9 @@ from unlockaid.schemas import (
     SignalChange,
     new_id,
 )
-from unlockaid.store import Store
+from quantizedalert.store import Store
 
-logger = logging.getLogger("unlockaid.daily")
+logger = logging.getLogger("quantizedalert.daily")
 
 
 class DailyPipeline:
@@ -133,7 +133,7 @@ class DailyPipeline:
                 new_id("evt"), ws, "data_stale",
                 f"Market data stale (last bar {health.calendar_last})",
                 f"Calendar last bar is **{health.calendar_last}** — daily analysis may "
-                f"use outdated inputs. Refresh with `unlockaid data refresh`.",
+                f"use outdated inputs. Refresh with `quantizedalert data refresh`.",
                 Severity.CRITICAL, models=[model_id],
                 components={"confidence": 0.95, "historical_significance": 0.6}))
         stale_assets = [a for a in health.assets
@@ -184,7 +184,7 @@ class DailyPipeline:
         every daily pass. Decision logic is deterministic code over real qlib
         outputs (Anti-Quack standard); an agent failure is logged and does NOT
         abort the run — predictions are already computed."""
-        from unlockaid.agents.research import (
+        from quantizedalert.agents.research import (
             MarketRegimeAgent,
             ModelMonitoringAgent,
             PortfolioRiskAgent,
@@ -224,7 +224,7 @@ class DailyPipeline:
         ws = cfg.workspace_id
         dep = self.store.get_deployment(ws)
         if not dep or not dep["enabled"]:
-            raise RuntimeError(f"no enabled deployment for {ws}; `unlockaid deploy` first")
+            raise RuntimeError(f"no enabled deployment for {ws}; `quantizedalert deploy` first")
         model_id = dep["model_id"]
         engine_sources = {"research_engine": "qlib",
                           "data_refresh": "qlib",

@@ -23,7 +23,7 @@ class PlatformConfig:
     dsa_path: str = str(ROOT / "repos" / "daily_stock_analysis")
     qlib_path: str = str(ROOT / "repos" / "qlib")
     mlflow_allow_file_store: bool = True
-    db_path: str = str(ROOT / "data" / "unlockaid.db")
+    db_path: str = str(ROOT / "data" / "quantizedalert.db")
     artifact_dir: str = str(ROOT / "data" / "artifacts")
     workspace_dir: str = str(ROOT / "config" / "workspaces")
     data_dir: str = str(ROOT / "data")
@@ -50,7 +50,8 @@ class PlatformConfig:
         if p.exists():
             raw = yaml.safe_load(p.read_text()) or {}
         known = {k: v for k, v in raw.items() if k in cls.__dataclass_fields__}
-        env_map = {"UNLOCKAID_QLIB_URI": "qlib_provider_uri",
+        env_map = {"QUANTIZEDALERT_QLIB_URI": "qlib_provider_uri",
+                   "UNLOCKAID_QLIB_URI": "qlib_provider_uri",
                    "DSA_PATH": "dsa_path",
                    "QLIB_PATH": "qlib_path"}
         for env_key, field_name in env_map.items():
@@ -61,6 +62,10 @@ class PlatformConfig:
         for key in ("dsa_path", "qlib_path"):
             if key in known and not os.path.isabs(str(known[key])):
                 known[key] = str((ROOT / known[key]).resolve())
+        if "db_path" in known and not os.path.exists(known["db_path"]):
+            legacy_db = str(ROOT / "data" / "unlockaid.db")
+            if os.path.exists(legacy_db):
+                known["db_path"] = legacy_db
         return cls(**known)
 
 

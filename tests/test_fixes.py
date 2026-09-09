@@ -6,10 +6,10 @@ import sys
 
 import pytest
 
-from unlockaid.alerts.intelligence import AlertIntelligence
-from unlockaid.config import AlertPrefs
-from unlockaid.schemas import AlertEvent, Severity, new_id
-from unlockaid.store import Store
+from quantizedalert.alerts.intelligence import AlertIntelligence
+from quantizedalert.config import AlertPrefs
+from quantizedalert.schemas import AlertEvent, Severity, new_id
+from quantizedalert.store import Store
 
 
 class OkAlerter:
@@ -21,7 +21,7 @@ class OkAlerter:
 
 # ---- H1: negative IR must fail the min_ir gate ---------------------------
 def test_negative_ir_flagged_by_default_gates():
-    from unlockaid.research.runner import DEFAULT_GATES
+    from quantizedalert.research.runner import DEFAULT_GATES
     # mirrors the runner's gate arithmetic
     bt_ir = -0.8
     assert bt_ir < DEFAULT_GATES["min_ir"]          # flag raised
@@ -30,7 +30,7 @@ def test_negative_ir_flagged_by_default_gates():
 
 # ---- H3/M10: metering never aborts completed work; jobs recorded ---------
 def test_make_meter_records_overage_without_raising(tmp_path):
-    from unlockaid.cli import make_meter
+    from quantizedalert.cli import make_meter
     store = Store(str(tmp_path / "m.db"))
     meter = make_meter(store, "free")
     cap = 5  # PLANS['free']['research_jobs_month']
@@ -44,8 +44,8 @@ def test_make_meter_records_overage_without_raising(tmp_path):
 
 
 def test_preflight_quota_raises_before_work(tmp_path):
-    from unlockaid.cli import preflight_quota
-    from unlockaid.commercial.plans import QuotaError
+    from quantizedalert.cli import preflight_quota
+    from quantizedalert.commercial.plans import QuotaError
     store = Store(str(tmp_path / "p.db"))
 
     class Cfg:
@@ -58,8 +58,8 @@ def test_preflight_quota_raises_before_work(tmp_path):
 
 
 def test_plan_alert_budget_is_source_of_truth(tmp_path):
-    from unlockaid.cli import cap_alert_budget
-    from unlockaid.commercial.plans import PLANS
+    from quantizedalert.cli import cap_alert_budget
+    from quantizedalert.commercial.plans import PLANS
     store = Store(str(tmp_path / "c.db"))
 
     class Cfg:
@@ -95,7 +95,7 @@ def test_dsa_modules_purged_after_context():
     dsa_path = "/root/repos/daily_stock_analysis"
     if not os.path.isdir(dsa_path):
         pytest.skip("DSA repo not present")
-    from unlockaid.assets.dsa_path import dsa_importable, dsa_module
+    from quantizedalert.assets.dsa_path import dsa_importable, dsa_module
     with dsa_importable(dsa_path):
         dsa_module("src.notification", dsa_path)
     assert not any(m == "src" or m.startswith("src.") for m in sys.modules)
@@ -126,7 +126,7 @@ def test_recent_daily_runs(tmp_path):
 
 # ---- L5: platform config env read at call time ---------------------------
 def test_platform_config_env_applied_at_load(monkeypatch, tmp_path):
-    from unlockaid.config import PlatformConfig
+    from quantizedalert.config import PlatformConfig
     monkeypatch.setenv("DSA_PATH", "/tmp/dsa-nowhere")
     pc = PlatformConfig.load(path=tmp_path / "none.yaml")
     assert pc.dsa_path == "/tmp/dsa-nowhere"

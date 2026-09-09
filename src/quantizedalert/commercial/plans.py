@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date
 
-from unlockaid.store import Store
+from quantizedalert.store import Store
 
 # §9 pricing (validated against the cost model below; not yet validated with customers)
 PLANS: dict[str, dict] = {
@@ -211,7 +211,7 @@ class StripeAdapter:
         if not price_id:
             raise ValueError(
                 f"no stripe price configured for plan {plan!r}. "
-                "Set UNLOCKAID_STRIPE_PRICES='{\"individual\":\"price_xxx\",...}'"
+                "Set QUANTIZEDALERT_STRIPE_PRICES='{\"individual\":\"price_xxx\",...}'"
             )
         sub = self.stripe.Subscription.create(
             customer=cust["stripe_customer_id"], items=[{"price": price_id}])
@@ -227,7 +227,7 @@ class StripeAdapter:
         from decimal import Decimal
         value = str(Decimal(str(round(qty, 10))).normalize()) if isinstance(qty, float) else str(qty)
         return self.stripe.billing.MeterEvent.record(
-            event_name=f"unlockaid_{metric}",
+            event_name=f"quantizedalert_{metric}",
             payload={"stripe_customer_id": cust["stripe_customer_id"],
                      "value": value})
 
@@ -250,19 +250,19 @@ class StripeAdapter:
 def _price_ids() -> dict[str, str]:
     import json
     import os
-    raw = os.environ.get("UNLOCKAID_STRIPE_PRICES", "")
+    raw = os.environ.get("QUANTIZEDALERT_STRIPE_PRICES") or os.environ.get("UNLOCKAID_STRIPE_PRICES", "")
     if not raw or raw.strip() == "{}":
         return {}
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
         raise ValueError(
-            "UNLOCKAID_STRIPE_PRICES is not valid JSON. "
+            "QUANTIZEDALERT_STRIPE_PRICES is not valid JSON. "
             f"Expected '{{\"individual\":\"price_xxx\",...}}' but got: {raw[:200]!r} — {e}"
         ) from e
     if not isinstance(data, dict):
         raise ValueError(
-            f"UNLOCKAID_STRIPE_PRICES must be a JSON object, got {type(data).__name__}: {raw[:200]!r}"
+            f"QUANTIZEDALERT_STRIPE_PRICES must be a JSON object, got {type(data).__name__}: {raw[:200]!r}"
         )
     return data
 

@@ -15,10 +15,10 @@ from datetime import UTC, datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from unlockaid.engine.qlib_engine import QlibEngine
-from unlockaid.schemas import AssetHealth, DataHealthReport, DataHealthStatus
+from quantizedalert.engine.qlib_engine import QlibEngine
+from quantizedalert.schemas import AssetHealth, DataHealthReport, DataHealthStatus
 
-logger = logging.getLogger("unlockaid.data")
+logger = logging.getLogger("quantizedalert.data")
 
 QLIB_DUMP_URL = ("https://github.com/chenditc/investment_data/releases/"
                  "latest/download/qlib_bin.tar.gz")

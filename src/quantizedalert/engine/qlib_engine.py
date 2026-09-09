@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger("unlockaid.qlib_engine")
+logger = logging.getLogger("quantizedalert.qlib_engine")
 
 DEFAULT_PROVIDER_URI = os.path.expanduser("~/.qlib/qlib_data/cn_data")
 
@@ -83,7 +83,7 @@ class QlibEngine:
         if not os.path.isdir(os.path.expanduser(self.provider_uri)):
             raise QlibExecutionError(
                 f"qlib data provider_uri missing: {self.provider_uri}. "
-                "Run `unlockaid data refresh` to download the qlib binary dump.")
+                "Run `quantizedalert data refresh` to download the qlib binary dump.")
         os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
         _patch_mlflow_file_store()
         from qlib.constant import REG_CN, REG_US

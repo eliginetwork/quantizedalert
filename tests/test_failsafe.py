@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import pytest
 
-from unlockaid.alerts.dsa_dispatch import AlertDeliveryError
-from unlockaid.alerts.intelligence import AlertIntelligence
-from unlockaid.analysis.daily import DailyPipeline
-from unlockaid.config import AlertPrefs, WorkspaceConfig
-from unlockaid.engine.qlib_engine import QlibExecutionError
-from unlockaid.schemas import AlertEvent, Severity, new_id
-from unlockaid.store import Store
+from quantizedalert.alerts.dsa_dispatch import AlertDeliveryError
+from quantizedalert.alerts.intelligence import AlertIntelligence
+from quantizedalert.analysis.daily import DailyPipeline
+from quantizedalert.config import AlertPrefs, WorkspaceConfig
+from quantizedalert.engine.qlib_engine import QlibExecutionError
+from quantizedalert.schemas import AlertEvent, Severity, new_id
+from quantizedalert.store import Store
 
 
 class BoomEngine:
@@ -98,7 +98,7 @@ def test_delivery_failure_blocks_claim(tmp_path, ws_cfg):
 
 
 def test_missing_service_raises_loud():
-    a = object.__new__(__import__("unlockaid.alerts.dsa_dispatch",
+    a = object.__new__(__import__("quantizedalert.alerts.dsa_dispatch",
                                   fromlist=["DSAlerter"]).DSAlerter)
     a._service = None
     with pytest.raises(AlertDeliveryError):
@@ -106,7 +106,7 @@ def test_missing_service_raises_loud():
 
 
 def test_quiet_hours_rule():
-    from unlockaid.alerts.intelligence import in_quiet_hours
+    from quantizedalert.alerts.intelligence import in_quiet_hours
     assert in_quiet_hours(23 * 60 + 30, "22:00", "07:00")   # overnight span
     assert not in_quiet_hours(12 * 60, "22:00", "07:00")
     assert in_quiet_hours(2 * 60, "00:30", "06:00")         # plain range

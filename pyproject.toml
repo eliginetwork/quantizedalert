@@ -1,8 +1,8 @@
 [project]
-name = "unlockaid"
+name = "quantizedalert"
 version = "0.1.0"
-description = "UnlockAid — Autonomous Quant Research-to-Alert Revenue Engine. Turn quantitative research into an always-on research and portfolio monitoring system."
-requires-python = ">=3.11,<3.13"
+description = "QuantizedAlert — Autonomous Quant Research-to-Alert Revenue Engine. Turn quantitative research into an always-on research and portfolio monitoring system."
+requires-python = ">=3.11"
 license = { text = "Proprietary" }
 dependencies = [
     # pyqlib is NOT on PyPI — keep the comment, and add a proper install instruction
@@ -35,7 +35,8 @@ billing = ["stripe==15.6.1"]
 llm = ["litellm==1.100.0"]
 
 [project.scripts]
-unlockaid = "unlockaid.cli:main"
+quantizedalert = "quantizedalert.cli:main"
+unlockaid = "quantizedalert.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -54,12 +55,12 @@ markers = [
     "asset: proves mandated-asset integration per AGENT_BUILD_PLAYBOOK",
 ]
 
-[tool.unlockaid]
+[tool.quantizedalert]
 qlib_path = "/root/repos/qlib"
 dsa_path = "/root/repos/daily_stock_analysis"
 # Install qlib separately (not on PyPI):
 #   uv pip install -e /path/to/qlib --python .venv/bin/python
-# Gate: scripts/asset_smoke_qlib.py must pass before `unlockaid research`.
+# Gate: scripts/asset_smoke_qlib.py must pass before `quantizedalert research`.
 
 [tool.ruff]
 line-length = 100
@@ -70,7 +71,7 @@ select = ["E", "F", "W", "I", "B", "C4", "UP"]
 ignore = ["E501", "E702", "B905", "E402", "UP042"]
 
 [tool.coverage.run]
-source = ["unlockaid"]
+source = ["quantizedalert"]
 omit = ["*/tests/*"]
 
 [tool.coverage.report]

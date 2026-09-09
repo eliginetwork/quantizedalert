@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    from unlockaid.store import SCHEMA
+    from quantizedalert.store import SCHEMA
     conn = op.get_bind()
     for stmt in SCHEMA.strip().split(";"):
         stmt = stmt.strip()

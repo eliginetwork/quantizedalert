@@ -1,6 +1,6 @@
-# Objective Decomposition — UnlockAid (Playbook v2.1 + Amendments)
+# Objective Decomposition — QuantizedAlert (formerly UnlockAid) (Playbook v2.1 + Amendments)
 
-**Project:** UnlockAid — Autonomous Quant Research-to-Alert Revenue Engine
+**Project:** QuantizedAlert — Autonomous Quant Research-to-Alert Revenue Engine
 **Objective source:** Business Objective attachment (27 sections), 2026-09-08.
 **Predecessor lesson encoded here:** `quant-research-alerts` failure (Playbook Appendix A) — this build MUST run qlib and daily_stock_analysis (DSA) in the primary execution path.
 

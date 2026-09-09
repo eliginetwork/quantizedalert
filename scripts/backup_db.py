@@ -4,10 +4,14 @@ import sqlite3
 from pathlib import Path
 
 
-def backup_db(src_path: str = "data/unlockaid.db", dst_dir: str = "data/backups") -> Path:
+def backup_db(src_path: str = "data/quantizedalert.db", dst_dir: str = "data/backups") -> Path:
     src = Path(src_path)
     if not src.exists():
-        raise FileNotFoundError(f"Source database does not exist: {src}")
+        legacy = Path("data/unlockaid.db")
+        if legacy.exists():
+            src = legacy
+        else:
+            raise FileNotFoundError(f"Source database does not exist: {src}")
     dst_folder = Path(dst_dir)
     dst_folder.mkdir(parents=True, exist_ok=True)
     dst = dst_folder / f"{datetime.date.today().isoformat()}.db"

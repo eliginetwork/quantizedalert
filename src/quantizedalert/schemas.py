@@ -110,7 +110,7 @@ class ValidationResult:
     stability: dict[str, float] = field(default_factory=dict)
     sensitivity: dict[str, float] = field(default_factory=dict)
     gate_results: dict[str, bool] = field(default_factory=dict)
-    engine_source: str = "qlib+unlockaid"
+    engine_source: str = "qlib+quantizedalert"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -194,7 +194,7 @@ class AlertDecision:
     suppress_reason: str | None = None
     channels: list[str] = field(default_factory=list)
     delivered: dict[str, bool] = field(default_factory=dict)
-    engine_source: str = "unlockaid+daily_stock_analysis"
+    engine_source: str = "quantizedalert+daily_stock_analysis"
 
 
 @dataclass
