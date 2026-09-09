@@ -7,6 +7,7 @@ running DailyPipeline.run for its workspace.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -30,9 +31,26 @@ class DeployScheduler:
         try:
             cfg = self.config_loader(workspace_id)
             res = self.run_fn(cfg)
-            logger.info("scheduled run %s ok=%s", workspace_id, getattr(res, "ok", None))
-        except Exception:
+            ok = getattr(res, "ok", True)
+            logger.info("scheduled run %s ok=%s", workspace_id, ok)
+            if not ok:
+                webhook = os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
+                if webhook:
+                    import requests
+                    try:
+                        requests.post(webhook, json={"workspace_id": workspace_id,
+                                                     "error": getattr(res, "error", "daily run failed")}, timeout=5)
+                    except Exception:
+                        pass
+        except Exception as e:
             logger.exception("scheduled run failed for %s", workspace_id)
+            webhook = os.environ.get("UNLOCKAID_FAILURE_WEBHOOK")
+            if webhook:
+                import requests
+                try:
+                    requests.post(webhook, json={"workspace_id": workspace_id, "error": str(e)}, timeout=5)
+                except Exception:
+                    pass
 
     def sync(self) -> list[str]:
         """Register one cron job per enabled deployment; returns job list."""

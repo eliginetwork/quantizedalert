@@ -28,9 +28,15 @@ from unlockaid.config import AlertPrefs, PlatformConfig, WorkspaceConfig
 from unlockaid.engine.qlib_engine import QlibEngine
 from unlockaid.store import Store
 
-logging.basicConfig(level=os.environ.get("UNLOCKAID_LOG", "INFO"),
-                    format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("unlockaid.cli")
+
+
+def _configure_logging() -> None:
+    level = os.environ.get("UNLOCKAID_LOG", "INFO").upper()
+    logging.basicConfig(level=level,
+                        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+                        force=True)
+    logger.setLevel(level)
 
 
 def _ctx():
@@ -43,7 +49,11 @@ def _ctx():
 def _load_ws(pcfg: PlatformConfig, ws: str) -> WorkspaceConfig:
     p = Path(pcfg.workspace_dir) / f"{ws}.yaml"
     if not p.exists():
-        sys.exit(f"workspace '{ws}' not found: {p} (create with `unlockaid init-workspace`)")
+        p2 = Path(pcfg.workspace_dir) / f"{ws}.yaml.example"
+        if p2.exists():
+            p = p2
+        else:
+            sys.exit(f"workspace '{ws}' not found: {p} (create with `unlockaid init-workspace`)")
     return WorkspaceConfig.load(p)
 
 
@@ -393,6 +403,7 @@ def cmd_explain(args):
 
 
 def main(argv=None):
+    _configure_logging()
     ap = argparse.ArgumentParser(prog="unlockaid",
                                  description=__doc__.splitlines()[0])
     ap.add_argument("--version", action="version", version=f"unlockaid {__version__}")
