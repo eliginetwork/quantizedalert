@@ -1,16 +1,37 @@
+# Python / venv
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.coverage
+.coverage.*
+htmlcov/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Data & artifacts (throwaway, or secrets-adjacent)
 mlruns/
 data/*.db
 data/*.sqlite*
 data/artifacts/
 data/exports/
 data/backups/
+
+# Secrets — never commit ANY .env variant
 .env
-*.egg-info/
-.coverage
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.log
+*.swp
+*~
+
 repos/
 
 # Workspaces with PII (see config/workspaces/README.md)

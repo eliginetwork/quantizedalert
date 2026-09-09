@@ -121,6 +121,11 @@ tail -f /tmp/unlockaid-alerts.jsonl
 
 ## 6. Environment variables (UnlockAid-specific)
 
+Copy env template:
+```bash
+cp .env.example .env   # then edit .env with real values
+```
+
 | var | effect |
 |---|---|
 | `UNLOCKAID_QLIB_URI` | override provider path |
