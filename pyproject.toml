@@ -2,28 +2,37 @@
 name = "unlockaid"
 version = "0.1.0"
 description = "UnlockAid — Autonomous Quant Research-to-Alert Revenue Engine. Turn quantitative research into an always-on research and portfolio monitoring system."
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 license = { text = "Proprietary" }
 dependencies = [
-    "pyqlib",               # /root/repos/qlib (editable) — research & modeling engine
-    "lightgbm",
-    "numpy<2.0",
+    # pyqlib is NOT on PyPI — keep the comment, and add a proper install instruction
+    # Install via: uv pip install -e /root/repos/qlib (or your qlib checkout)
+    "lightgbm==4.7.0",
+    "numpy>=1.26,<2.0",
     "pandas>=2.1,<3",
-    "pyyaml",
-    "requests",
-    "fastapi",
-    "uvicorn",
-    "jinja2",
-    "apscheduler",
-    "sqlalchemy>=2.0",
-    "python-dotenv",
-    "dill",
+    "pyyaml==6.0.3",
+    "requests==2.34.2",
+    "fastapi==0.141.1",
+    "uvicorn==0.52.4",
+    "jinja2==3.1.6",
+    "apscheduler==3.11.3",
+    "sqlalchemy>=2.0,<2.1",
+    "python-dotenv==1.2.3",
+    "dill==0.4.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-timeout"]
-billing = ["stripe"]        # lazy-imported; offline tests use an injected fake
-llm = ["litellm"]           # optional prose polish in ResearchExplanationAgent
+dev = [
+    "pytest==9.1.1",
+    "pytest-timeout==2.4.0",
+    "ruff==0.16.6",
+    "mypy==2.3.1",
+    "coverage==7.16.0",
+    "alembic==1.19.2",
+    "slowapi==0.1.10",
+]
+billing = ["stripe==15.6.1"]
+llm = ["litellm==1.100.0"]
 
 [project.scripts]
 unlockaid = "unlockaid.cli:main"
@@ -48,3 +57,22 @@ markers = [
 [tool.unlockaid]
 qlib_path = "/root/repos/qlib"
 dsa_path = "/root/repos/daily_stock_analysis"
+# Install qlib separately (not on PyPI):
+#   uv pip install -e /path/to/qlib --python .venv/bin/python
+# Gate: scripts/asset_smoke_qlib.py must pass before `unlockaid research`.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = []
+
+[tool.coverage.run]
+source = ["unlockaid"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
