@@ -76,6 +76,8 @@ def utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
+# Thread-safety: Store is safe to share across threads ONLY because _conn()
+# opens a NEW sqlite3.Connection per call. Never cache a connection on `self`.
 class Store:
     def __init__(self, path: str | Path):
         self.path = str(path)
@@ -85,9 +87,14 @@ class Store:
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
-        c = sqlite3.connect(self.path, timeout=30)
+        c = sqlite3.connect(self.path, timeout=30, check_same_thread=False, isolation_level=None)
         c.row_factory = sqlite3.Row
         try:
+            # WAL allows concurrent readers + one writer; dramatically reduces "database is locked"
+            c.execute("PRAGMA journal_mode=WAL;")
+            c.execute("PRAGMA synchronous=NORMAL;")
+            c.execute("PRAGMA busy_timeout=30000;")  # 30s busy timeout at the SQLite level too
+            c.execute("PRAGMA foreign_keys=ON;")
             yield c
             c.commit()
         finally:
