@@ -32,6 +32,11 @@ logger = logging.getLogger("unlockaid.cli")
 
 
 def _configure_logging() -> None:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
     level = os.environ.get("UNLOCKAID_LOG", "INFO").upper()
     logging.basicConfig(level=level,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s",

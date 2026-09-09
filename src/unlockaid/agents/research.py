@@ -261,19 +261,51 @@ class ResearchExplanationAgent:
         return text
 
     def _maybe_llm(self, text: str) -> str:
-        model = os.environ.get("UNLOCKAID_LLM_MODEL")
+        model = os.environ.get("OPENAI_MODEL") or os.environ.get("UNLOCKAID_LLM_MODEL")
         if not model:
             return text + " [engine_source=template]"
+
+        api_key = (
+            os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("UNLOCKAID_LLM_API_KEY")
+            or "sk-no-key-required"
+        )
+        base_url = (
+            os.environ.get("OPENAI_BASE_URL")
+            or os.environ.get("OPENAI_API_BASE")
+            or os.environ.get("UNLOCKAID_LLM_BASE_URL")
+        )
+        prompt = (
+            "Rewrite this quant research note for a sophisticated but non-specialist customer; "
+            "keep every number exact:\n\n" + text
+        )
+
         try:
-            import litellm
-            resp = litellm.completion(
-                model=model, messages=[{
-                    "role": "user",
-                    "content": "Rewrite this quant research note for a "
-                               "sophisticated but non-specialist customer; keep every "
-                               "number exact:\n\n" + text}],
-                max_tokens=600)
-            return resp.choices[0].message.content
-        except Exception as e:  # fallback must be visible
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=600,
+            )
+            content = resp.choices[0].message.content
+            if content:
+                return content.strip()
+            return text + " [engine_source=template-empty-response]"
+        except Exception as e:
+            try:
+                import litellm
+                resp = litellm.completion(
+                    model=model,
+                    api_base=base_url,
+                    api_key=api_key,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=600,
+                )
+                content = resp.choices[0].message.content
+                if content:
+                    return content.strip()
+            except Exception:
+                pass
             logger.warning("LLM polish failed (%s); using template prose", e)
             return text + f" [engine_source=template-fallback:{type(e).__name__}]"

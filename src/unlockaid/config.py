@@ -40,6 +40,11 @@ class PlatformConfig:
 
     @classmethod
     def load(cls, path: Path | None = None) -> PlatformConfig:
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
         p = path or (ROOT / "config" / "platform.yaml")
         raw: dict[str, Any] = {}
         if p.exists():
