@@ -5,7 +5,11 @@ Loads real features via qlib's data layer, trains a real qlib LightGBM model on
 Alpha158 factors over CSI300, scores out-of-sample, and runs a qlib backtest.
 Output is captured into docs/BUILD_EVIDENCE.md.
 """
+import os
 import time
+
+os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
 import numpy as np
 import qlib
