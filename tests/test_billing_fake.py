@@ -22,6 +22,12 @@ class FakeStripe:
             def record(event_name, payload):
                 return {"recorded": event_name, **payload}
 
+    class Webhook:
+        @staticmethod
+        def construct_event(payload, sig_header, secret):
+            import json
+            return json.loads(payload)
+
 
 @pytest.fixture()
 def adapter(tmp_path):
@@ -29,12 +35,11 @@ def adapter(tmp_path):
     return StripeAdapter(store, client=FakeStripe()), store
 
 
-def test_customer_and_subscribe_flow(adapter):
+def test_customer_and_subscribe_flow(adapter, monkeypatch):
     a, store = adapter
     c = a.create_customer("w1", "x@y.z")
     assert c["id"] == "cus_w1"
-    import os
-    os.environ["UNLOCKAID_STRIPE_PRICES"] = '{"individual": "price_ind"}'
+    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
     sub = a.subscribe("w1", "individual")
     assert sub["id"] == "sub_1"
     cust = store.get_customer("w1")
@@ -48,3 +53,65 @@ def test_meter_event_reports_real_metric(adapter):
     r = a.report_usage("w2", "inference_jobs", 7)
     assert r["recorded"] == "unlockaid_inference_jobs"
     assert r["value"] == "7"
+
+
+def test_subscribe_unknown_plan_raises(adapter, monkeypatch):
+    a, _ = adapter
+    a.create_customer("w3", "a@b.c")
+    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
+    with pytest.raises(ValueError, match="unknown plan"):
+        a.subscribe("w3", "does_not_exist")
+
+
+def test_subscribe_missing_price_raises(adapter, monkeypatch):
+    a, _ = adapter
+    a.create_customer("w4", "d@e.f")
+    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", '{"individual": "price_ind"}')
+    with pytest.raises(ValueError, match="no stripe price"):
+        a.subscribe("w4", "professional")
+
+
+def test_report_usage_no_customer_returns_none(adapter):
+    a, _ = adapter
+    assert a.report_usage("ghost", "inference_jobs", 1) is None
+
+
+def test_report_usage_float_precision(adapter):
+    a, _ = adapter
+    a.create_customer("w5", "g@h.i")
+    r = a.report_usage("w5", "inference_jobs", 0.1 + 0.2)
+    # Must be "0.30000000000000004" -> NO, must be "0.3"
+    assert r["value"] == "0.3", f"float noise leaked: {r['value']}"
+
+
+def test_price_ids_invalid_json_raises(monkeypatch):
+    from unlockaid.commercial.plans import _price_ids
+    monkeypatch.setenv("UNLOCKAID_STRIPE_PRICES", "{not json}")
+    with pytest.raises(ValueError, match="not valid JSON"):
+        _price_ids()
+
+
+def test_handle_webhook_invalid_signature(adapter, monkeypatch):
+    a, _ = adapter
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    class BadWebhook:
+        @staticmethod
+        def construct_event(payload, sig_header, secret):
+            raise ValueError("invalid signature")
+
+    a.stripe = type("S", (), {"Webhook": BadWebhook, "Customer": FakeStripe.Customer,
+                               "Subscription": FakeStripe.Subscription, "billing": FakeStripe.billing})()
+    with pytest.raises(ValueError, match="invalid signature"):
+        a.handle_webhook(b"{}", "bad_sig")
+
+
+def test_enterprise_quota_is_effectively_unlimited(tmp_path):
+    from unlockaid.commercial.plans import Metering
+    store = Store(str(tmp_path / "e.db"))
+    m = Metering(store)
+    # Enterprise has 1e9 quota — metering 1e6 jobs must not raise
+    for _ in range(100):
+        m.check_and_meter("w", "enterprise", "research_jobs", 10000, ref="bulk")
+    # Should not have raised
+    assert store.usage_total("w", "research_jobs", m.month_start()) == 100 * 10000

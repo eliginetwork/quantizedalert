@@ -84,6 +84,13 @@ class QuotaError(Exception):
                 f"{self.used:.0f}/{self.limit:.0f}")
 
 
+_QUOTA_METRICS = {
+    "research_jobs": lambda p: PLANS[p]["research_jobs_month"],
+    "inference_jobs": lambda p: PLANS[p]["inference_jobs_month"],
+    "alerts_day": lambda p: PLANS[p]["alerts_day"],
+}
+
+
 class Metering:
     """Quota-gated usage metering backed by the store's usage table."""
 
@@ -92,33 +99,33 @@ class Metering:
 
     @staticmethod
     def month_start() -> str:
-        return date.today().replace(day=1).isoformat()
+        from datetime import UTC, datetime
+        return datetime.now(UTC).date().replace(day=1).isoformat()
 
     def check_quota(self, workspace_id: str, plan: str, metric: str,
                     qty: float = 1) -> None:
         """Pre-flight quota check WITHOUT metering — call before starting work
         so a quota breach never aborts work that already happened."""
-        limits = {"research_jobs": PLANS[plan]["research_jobs_month"],
-                  "inference_jobs": PLANS[plan]["inference_jobs_month"],
-                  "alerts_day": PLANS[plan]["alerts_day"]}
-        if metric not in limits:
+        if metric not in _QUOTA_METRICS:
             return
+        limit = _QUOTA_METRICS[metric](plan)
         if metric == "alerts_day":
             used = self.store.usage_by_day(workspace_id, "alerts_delivered",
                                            date.today().isoformat())
         else:
             used = self.store.usage_total(workspace_id, metric, self.month_start())
-        if used + qty > limits[metric]:
-            raise QuotaError(workspace_id, metric, used, limits[metric])
+        if used + qty > limit:
+            raise QuotaError(workspace_id, metric, used, limit)
 
     def check_and_meter(self, workspace_id: str, plan: str, metric: str,
                         qty: float = 1, ref: str = "") -> None:
-        limits = {"research_jobs": PLANS[plan]["research_jobs_month"],
-                  "inference_jobs": PLANS[plan]["inference_jobs_month"]}
-        if metric in limits:
+        # Note: alerts are metered post-delivery via make_meter/alert();
+        # check_and_meter checks monthly job quotas.
+        if metric in ("research_jobs", "inference_jobs"):
+            limit = _QUOTA_METRICS[metric](plan)
             used = self.store.usage_total(workspace_id, metric, self.month_start())
-            if used + qty > limits[metric]:
-                raise QuotaError(workspace_id, metric, used, limits[metric])
+            if used + qty > limit:
+                raise QuotaError(workspace_id, metric, used, limit)
         self.store.meter(workspace_id, metric, qty, ref)
 
     @staticmethod
@@ -196,9 +203,16 @@ class StripeAdapter:
 
     def subscribe(self, workspace_id: str, plan: str) -> dict:
         cust = self.store.get_customer(workspace_id)
+        if not cust or not cust.get("stripe_customer_id"):
+            raise ValueError(f"workspace {workspace_id!r} has no stripe customer — call create_customer first")
+        if plan not in PLANS:
+            raise ValueError(f"unknown plan {plan!r}; valid: {sorted(PLANS)}")
         price_id = _price_ids().get(plan)
         if not price_id:
-            raise ValueError(f"no stripe price configured for plan {plan}")
+            raise ValueError(
+                f"no stripe price configured for plan {plan!r}. "
+                "Set UNLOCKAID_STRIPE_PRICES='{\"individual\":\"price_xxx\",...}'"
+            )
         sub = self.stripe.Subscription.create(
             customer=cust["stripe_customer_id"], items=[{"price": price_id}])
         self.store.set_customer_plan(workspace_id, plan,
@@ -210,10 +224,12 @@ class StripeAdapter:
         cust = self.store.get_customer(workspace_id)
         if not cust or not cust.get("stripe_customer_id"):
             return None
+        from decimal import Decimal
+        value = str(Decimal(str(round(qty, 10))).normalize()) if isinstance(qty, float) else str(qty)
         return self.stripe.billing.MeterEvent.record(
             event_name=f"unlockaid_{metric}",
             payload={"stripe_customer_id": cust["stripe_customer_id"],
-                     "value": str(qty)})
+                     "value": value})
 
     def handle_webhook(self, payload: bytes, sig_header: str) -> dict:
         """Plan changes land here: checkout.session.completed / subscription.updated."""
@@ -234,11 +250,21 @@ class StripeAdapter:
 def _price_ids() -> dict[str, str]:
     import json
     import os
-    raw = os.environ.get("UNLOCKAID_STRIPE_PRICES", "{}")
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+    raw = os.environ.get("UNLOCKAID_STRIPE_PRICES", "")
+    if not raw or raw.strip() == "{}":
         return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            "UNLOCKAID_STRIPE_PRICES is not valid JSON. "
+            f"Expected '{{\"individual\":\"price_xxx\",...}}' but got: {raw[:200]!r} — {e}"
+        ) from e
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"UNLOCKAID_STRIPE_PRICES must be a JSON object, got {type(data).__name__}: {raw[:200]!r}"
+        )
+    return data
 
 
 def _webhook_secret() -> str:
