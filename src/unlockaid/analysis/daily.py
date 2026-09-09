@@ -237,6 +237,8 @@ class DailyPipeline:
             health_insts = cfg.instruments or self.engine.list_instruments(
                 cfg.universe, cfg.handler_range[0], cfg.handler_range[1])
             health = check_health(self.engine, cfg.universe, health_insts)
+            status_str = "fresh" if health.fresh else "stale"
+            self.store.put_data_health(ws, str(asof or health.calendar_last), status_str, health.to_dict())
         except Exception as e:  # noqa: BLE001 — fail-safe, recorded, not silent
             health = None
             self.store.put_data_health(ws, str(asof or "n/a"), "error", {"error": str(e)})

@@ -337,7 +337,7 @@ class QlibEngine:
                      model_type: str, hyperparameters: dict,
                      start: str, end: str, n_splits: int = 3,
                      label_horizon_days: int = 2,
-                     recorder_dir: str = "mlruns") -> list[dict[str, Any]]:
+                     recorder_dir: str = "data/artifacts/mlruns") -> list[dict[str, Any]]:
         """Expanding-window walk-forward with purge + embargo.
 
         Per fold: train on all history up to (tr_end - valid_days - 1),

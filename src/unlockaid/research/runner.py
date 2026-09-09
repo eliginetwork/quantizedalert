@@ -13,7 +13,7 @@ import uuid
 import numpy as np
 
 from unlockaid.config import WorkspaceConfig
-from unlockaid.engine.qlib_engine import QlibEngine
+from unlockaid.engine.qlib_engine import QlibEngine, QlibExecutionError
 from unlockaid.schemas import BacktestReport, ModelRecord, ModelStatus, ValidationResult, new_id
 from unlockaid.store import Store, utcnow
 
@@ -44,6 +44,14 @@ class ResearchRunner:
 
         Returns a CANDIDATE ModelRecord (promotion happens in validate()).
         """
+        # Gate: refuse to train on stale data ( >5 days old)
+        from unlockaid.data.health import stale_ok
+        cal = self.engine.calendar()
+        if not os.environ.get("UNLOCKAID_ALLOW_STALE") and not getattr(cfg, "allow_stale", False) and not stale_ok(cal):
+            raise QlibExecutionError(
+                f"refusing to train: qlib calendar is stale (last bar {cal[-1] if cal else 'empty'}). "
+                "Run `unlockaid data refresh` or `unlockaid data health <ws>`."
+            )
         self.engine.init()
         model_id = new_id("mdl")
         instruments = cfg.universe or cfg.instruments
@@ -211,7 +219,8 @@ class ResearchRunner:
                 v = hp[k] * mult
                 hp[k] = max(1, int(v)) if isinstance(base_hp[k], int) else v
                 m = self.engine.build_model(cfg.model_type, hp)
-                pred, _ = self.engine.train(m, ds, "sensitivity", "mlruns")
+                mlruns_dir = os.path.join(self.artifact_root, "mlruns", cfg.workspace_id)
+                pred, _ = self.engine.train(m, ds, "sensitivity", mlruns_dir)
                 ics.append(self.engine.ic(ds, pred)["ic"])
         return {"ic_spread": float(np.max(ics) - np.min(ics)) if len(ics) > 1 else 0.0}
 
