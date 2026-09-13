@@ -889,7 +889,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
     async
     crossorigin="anonymous"
     data-clerk-publishable-key="{{ clerk_publishable_key }}"
-    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript">
   </script>
 </head>
@@ -1542,29 +1542,50 @@ function animate() {
 
 // Clerk Authentication & Telegram Linkage Controller
 let currentUser = null;
+let clerkReadyPromise = null;
+
+function ensureClerkReady() {
+  if (clerkReadyPromise) return clerkReadyPromise;
+  clerkReadyPromise = (async () => {
+    let retries = 0;
+    while (!window.Clerk && retries < 60) {
+      await new Promise(r => setTimeout(r, 50));
+      retries++;
+    }
+    if (!window.Clerk) {
+      console.error('Clerk SDK failed to load.');
+      return null;
+    }
+    if (!window.Clerk.loaded) {
+      await window.Clerk.load({
+        appearance: {
+          variables: {
+            colorPrimary: '#D4AF37',
+            colorBackground: '#0B0F17',
+            colorText: '#F5F7FA',
+            colorInputBackground: '#101624',
+            colorInputText: '#FFF',
+          }
+        }
+      });
+    }
+    return window.Clerk;
+  })();
+  return clerkReadyPromise;
+}
 
 async function initClerk() {
-  if (!window.Clerk) return;
   try {
-    await window.Clerk.load({
-      appearance: {
-        variables: {
-          colorPrimary: '#D4AF37',
-          colorBackground: '#0B0F17',
-          colorText: '#F5F7FA',
-          colorInputBackground: '#101624',
-          colorInputText: '#FFF',
-        }
-      }
-    });
+    const clerk = await ensureClerkReady();
+    if (!clerk) return;
 
-    if (window.Clerk.user) {
-      const email = window.Clerk.user.primaryEmailAddress ? window.Clerk.user.primaryEmailAddress.emailAddress : '';
-      const clerkId = window.Clerk.user.id;
-      const name = window.Clerk.user.fullName || '';
+    if (clerk.user) {
+      const email = clerk.user.primaryEmailAddress ? clerk.user.primaryEmailAddress.emailAddress : '';
+      const clerkId = clerk.user.id;
+      const name = clerk.user.fullName || '';
 
       const ub = document.getElementById('clerk-user-button');
-      if (ub) window.Clerk.mountUserButton(ub);
+      if (ub) clerk.mountUserButton(ub);
       const loginBtn = document.getElementById('clerk-login-btn');
       if (loginBtn) loginBtn.style.display = 'none';
 
@@ -1626,12 +1647,20 @@ function updateTelegramUI(user) {
   }
 }
 
-function openClerkModal(mode) {
-  if (!window.Clerk) return;
-  if (mode === 'signup') {
-    window.Clerk.openSignUp();
-  } else {
-    window.Clerk.openSignIn();
+async function openClerkModal(mode) {
+  try {
+    const clerk = await ensureClerkReady();
+    if (!clerk) {
+      alert('Authentication service is connecting. Please try again in a few seconds.');
+      return;
+    }
+    if (mode === 'signup') {
+      clerk.openSignUp();
+    } else {
+      clerk.openSignIn();
+    }
+  } catch (err) {
+    console.error('Clerk modal error:', err);
   }
 }
 
@@ -1721,7 +1750,7 @@ _PORTAL_TEMPLATE = """<!doctype html>
     async
     crossorigin="anonymous"
     data-clerk-publishable-key="{{ clerk_publishable_key }}"
-    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript">
   </script>
 </head>
@@ -1783,31 +1812,54 @@ _PORTAL_TEMPLATE = """<!doctype html>
 </div>
 
 <script>
-async function initPortalClerk() {
-  if (!window.Clerk) return;
-  try {
-    await window.Clerk.load({
-      appearance: {
-        variables: {
-          colorPrimary: '#D4AF37',
-          colorBackground: '#0B0F17',
-          colorText: '#F5F7FA',
-          colorInputBackground: '#101624',
-          colorInputText: '#FFF',
+let portalClerkReadyPromise = null;
+
+function ensurePortalClerkReady() {
+  if (portalClerkReadyPromise) return portalClerkReadyPromise;
+  portalClerkReadyPromise = (async () => {
+    let retries = 0;
+    while (!window.Clerk && retries < 60) {
+      await new Promise(r => setTimeout(r, 50));
+      retries++;
+    }
+    if (!window.Clerk) {
+      console.error('Clerk SDK failed to load on portal.');
+      return null;
+    }
+    if (!window.Clerk.loaded) {
+      await window.Clerk.load({
+        appearance: {
+          variables: {
+            colorPrimary: '#D4AF37',
+            colorBackground: '#0B0F17',
+            colorText: '#F5F7FA',
+            colorInputBackground: '#101624',
+            colorInputText: '#FFF',
+          }
         }
-      }
-    });
-    if (window.Clerk.user) {
+      });
+    }
+    return window.Clerk;
+  })();
+  return portalClerkReadyPromise;
+}
+
+async function initPortalClerk() {
+  try {
+    const clerk = await ensurePortalClerkReady();
+    if (!clerk) return;
+
+    if (clerk.user) {
       const ub = document.getElementById('clerk-user-button');
-      if (ub) window.Clerk.mountUserButton(ub);
+      if (ub) clerk.mountUserButton(ub);
       const loginBtn = document.getElementById('clerk-login-btn');
       if (loginBtn) loginBtn.style.display = 'none';
       try {
-        const email = window.Clerk.user.primaryEmailAddress ? window.Clerk.user.primaryEmailAddress.emailAddress : '';
+        const email = clerk.user.primaryEmailAddress ? clerk.user.primaryEmailAddress.emailAddress : '';
         await fetch('/api/auth/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clerk_id: window.Clerk.user.id, email: email, name: window.Clerk.user.fullName || '' })
+          body: JSON.stringify({ clerk_id: clerk.user.id, email: email, name: clerk.user.fullName || '' })
         });
       } catch (e) {}
     } else {
@@ -1819,12 +1871,20 @@ async function initPortalClerk() {
   }
 }
 
-function openClerkModal(mode) {
-  if (!window.Clerk) return;
-  if (mode === 'signup') {
-    window.Clerk.openSignUp();
-  } else {
-    window.Clerk.openSignIn();
+async function openClerkModal(mode) {
+  try {
+    const clerk = await ensurePortalClerkReady();
+    if (!clerk) {
+      alert('Authentication service is connecting. Please try again in a few seconds.');
+      return;
+    }
+    if (mode === 'signup') {
+      clerk.openSignUp();
+    } else {
+      clerk.openSignIn();
+    }
+  } catch (err) {
+    console.error('Clerk modal error:', err);
   }
 }
 
