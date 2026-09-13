@@ -1,6 +1,6 @@
 """Load-bearing qlib adapter (Layer B research engine).
 
-This module is the ONLY place UnlockAid talks to qlib. Every research job, backtest,
+This module is the ONLY place QuantizedAlert talks to qlib. Every research job, backtest,
 and daily inference flows through here, so the asset sits in the primary execution
 path (Playbook Amendment A.3): there is no fallback implementation of factor
 engineering, model training, or backtesting anywhere in this codebase.

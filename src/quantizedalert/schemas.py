@@ -1,4 +1,4 @@
-"""Domain contracts (schemas) shared across UnlockAid layers.
+"""Domain contracts (schemas) shared across QuantizedAlert layers.
 
 Every artifact that crosses a layer boundary is one of these. `engine_source`
 fields implement Playbook Amendment E (fallback transparency): the value records

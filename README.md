@@ -29,7 +29,7 @@ and alert plumbing — **your quant infrastructure, managed for you** — not
 ## 2. Install (one-time, from this directory)
 
 ```bash
-cd /root/work/unlockaid
+cd /root/work/quantizedalert
 
 # 1) virtualenv
 uv venv .venv --python 3.11          # or: python3.11 -m venv .venv
@@ -55,8 +55,8 @@ Platform config: `config/platform.yaml` (paths default to this layout):
 ```yaml
 qlib_provider_uri: ~/.qlib/qlib_data/cn_data   # env override: QUANTIZEDALERT_QLIB_URI
 qlib_region: cn
-dsa_path: /root/repos/daily_stock_analysis     # env override: DSA_PATH
-qlib_path: /root/repos/qlib                    # env override: QLIB_PATH
+dsa_path: ./repos/daily_stock_analysis     # env override: DSA_PATH
+qlib_path: ./repos/qlib                    # env override: QLIB_PATH
 db_path: data/quantizedalert.db
 artifact_dir: data/artifacts
 workspace_dir: config/workspaces
@@ -265,8 +265,9 @@ they lose*. Full list: [docs/DEVIATIONS.md](docs/DEVIATIONS.md).
 # data/(sqlite db + artifacts + exports), scripts/asset_smoke_qlib.py
 ```
 
-Docs: [docs/ASSET_INVENTORY.md](docs/ASSET_INVENTORY.md) (reuse-vs-own per
-capability), [docs/OBJECTIVE_DECOMPOSITION.md](docs/OBJECTIVE_DECOMPOSITION.md),
+Docs: [docs/PORTABILITY_AND_E2E_GUIDE.md](docs/PORTABILITY_AND_E2E_GUIDE.md) (architecture, cloud migration & E2E guide),
+[docs/ASSET_INVENTORY.md](docs/ASSET_INVENTORY.md) (reuse-vs-own per capability),
+[docs/OBJECTIVE_DECOMPOSITION.md](docs/OBJECTIVE_DECOMPOSITION.md),
 [docs/BUILD_EVIDENCE.md](docs/BUILD_EVIDENCE.md) (claim→command→output),
 [docs/DEVIATIONS.md](docs/DEVIATIONS.md), [docs/SELF_REVIEW.md](docs/SELF_REVIEW.md).
 

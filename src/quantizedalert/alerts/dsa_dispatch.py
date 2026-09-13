@@ -2,7 +2,7 @@
 
 DSA is used, not reimplemented: its `NotificationService` (a mixin of the 14
 channel senders in `src/notification_sender/`) does the actual HTTP/SMTP
-delivery, chunking, image fallback, and per-channel diagnostics. UnlockAid's
+delivery, chunking, image fallback, and per-channel diagnostics. QuantizedAlert's
 contribution is *what* to send (alert intelligence) and *for whom* (per
 workspace routing); everything about *how messages reach channels* is DSA's.
 

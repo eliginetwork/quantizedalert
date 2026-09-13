@@ -29,6 +29,7 @@ live = pytest.mark.skipif(not HAS_QLIB_DATA, reason="qlib cn dump not present")
 def pcfg(tmp_path_factory):
     root = tmp_path_factory.mktemp("ua")
     os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+    os.environ.setdefault("QUANTIZEDALERT_ALLOW_STALE", "1")
     return PlatformConfig(db_path=str(root / "t.db"),
                           artifact_dir=str(root / "art"),
                           workspace_dir=str(root / "ws"),
@@ -54,7 +55,7 @@ def test_sc1_qlib_asset_smoke(pcfg):
     from quantizedalert.research.runner import ResearchRunner
     cfg = WorkspaceConfig(workspace_id="sc1", universe="csi300",
                           model_type="ridge", hyperparameters={"alpha": 1000.0},
-                          factor_set="Alpha158")
+                          factor_set="Alpha158", allow_stale=True)
     r = ResearchRunner(e, Store(pcfg.db_path), pcfg.artifact_dir)
     rec = r.train(cfg)
     assert rec.status.value == "candidate"

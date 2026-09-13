@@ -15,7 +15,7 @@ from quantizedalert.store import Store
 
 def _require_token(authorization: str | None = Header(default=None),
                    x_api_key: str | None = Header(default=None)) -> None:
-    """Require UNLOCKAID_DASHBOARD_TOKEN if it is set. If unset, allow (dev mode)."""
+    """Require QUANTIZEDALERT_DASHBOARD_TOKEN (or legacy UNLOCKAID_DASHBOARD_TOKEN) if set. If unset, allow (dev mode)."""
     expected = os.environ.get("QUANTIZEDALERT_DASHBOARD_TOKEN") or os.environ.get("UNLOCKAID_DASHBOARD_TOKEN", "")
     if not expected:
         return  # dev mode: no token required

@@ -121,7 +121,9 @@ class AlertIntelligence:
         min_rank = Severity(self.prefs.min_severity).rank
 
         for e in events:
-            e.components = self.score(e, held_instruments, recent, asof=asof)
+            orig_comps = dict(e.components) if e.components else {}
+            orig_comps.update(self.score(e, held_instruments, recent, asof=asof))
+            e.components = orig_comps
             e.score = self.value(e.components)
             e.created_at = e.created_at or utcnow()
             # instrument-specific fallback: distinct signal changes for distinct
@@ -141,7 +143,11 @@ class AlertIntelligence:
 
         for e in ranked:
             reason: str | None = None
-            if e.score < self.prefs.min_score:
+            min_conv = getattr(self.prefs, "min_conviction", 0.0)
+            conv_score = e.components.get("conviction")
+            if min_conv > 0.0 and conv_score is not None and conv_score < min_conv:
+                reason = f"conviction {conv_score:.1f} < min_conviction {min_conv:.1f}"
+            elif e.score < self.prefs.min_score:
                 reason = f"score {e.score:.2f} < min_score {self.prefs.min_score}"
             elif e.severity.rank < min_rank:
                 reason = f"below min_severity {self.prefs.min_severity}"

@@ -407,6 +407,13 @@ def cmd_explain(args):
 
 
 
+def cmd_sectors(args):
+    from quantizedalert.market.sector_intelligence import SectorIntelligence
+    intel = SectorIntelligence()
+    ratings = intel.rate_all_sectors(force_refresh=args.refresh)
+    print(json.dumps({k: v.to_dict() for k, v in ratings.items()}, indent=2))
+
+
 def main(argv=None):
     _configure_logging()
     ap = argparse.ArgumentParser(prog="quantizedalert",
@@ -474,6 +481,10 @@ def main(argv=None):
     e.add_argument("--force", action="store_true",
                    help="deploy even if validation rejects the model")
     e.set_defaults(fn=cmd_e2e)
+
+    sec = sub.add_parser("sectors", help="Analyze US market sector intelligence")
+    sec.add_argument("--refresh", action="store_true", help="Force refresh sector calculations")
+    sec.set_defaults(fn=cmd_sectors)
 
     args = ap.parse_args(argv)
     args.fn(args)

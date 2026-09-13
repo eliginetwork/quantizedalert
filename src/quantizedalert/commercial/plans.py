@@ -8,7 +8,7 @@ offline (no network in tests).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date
+from datetime import UTC, datetime
 
 from quantizedalert.store import Store
 
@@ -99,8 +99,11 @@ class Metering:
 
     @staticmethod
     def month_start() -> str:
-        from datetime import UTC, datetime
         return datetime.now(UTC).date().replace(day=1).isoformat()
+
+    @staticmethod
+    def today_iso() -> str:
+        return datetime.now(UTC).strftime("%Y-%m-%d")
 
     def check_quota(self, workspace_id: str, plan: str, metric: str,
                     qty: float = 1) -> None:
@@ -111,7 +114,7 @@ class Metering:
         limit = _QUOTA_METRICS[metric](plan)
         if metric == "alerts_day":
             used = self.store.usage_by_day(workspace_id, "alerts_delivered",
-                                           date.today().isoformat())
+                                           self.today_iso())
         else:
             used = self.store.usage_total(workspace_id, metric, self.month_start())
         if used + qty > limit:
@@ -142,7 +145,7 @@ class Metering:
         self.check_and_meter(workspace_id, plan, "inference_jobs", 1, ref)
 
     def alert(self, workspace_id: str, plan: str, ref: str = "") -> None:
-        today = date.today().isoformat()
+        today = self.today_iso()
         used = self.store.usage_by_day(workspace_id, "alerts_delivered", today)
         if used >= PLANS[plan]["alerts_day"]:
             raise QuotaError(workspace_id, "alerts_day", used,
@@ -153,7 +156,7 @@ class Metering:
 def contribution_margin(store: Store, workspace_id: str, plan: str,
                         month: str | None = None) -> dict:
     """§22: Revenue − data − compute − storage − messaging = contribution."""
-    month_start = month or date.today().replace(day=1).isoformat()
+    month_start = month or datetime.now(UTC).date().replace(day=1).isoformat()
     p = PLANS[plan]
     revenue = p["price_month_usd"]
     research = store.usage_total(workspace_id, "research_jobs", month_start)
@@ -185,7 +188,7 @@ class StripeAdapter:
 
     stripe SDK is injected/created lazily so offline tests use a fake client.
     Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-         UNLOCKAID_STRIPE_PRICES='{"individual":"price_xxx", ...}'.
+         QUANTIZEDALERT_STRIPE_PRICES='{"individual":"price_xxx", ...}' (legacy UNLOCKAID_STRIPE_PRICES supported).
     """
 
     def __init__(self, store: Store, client=None):

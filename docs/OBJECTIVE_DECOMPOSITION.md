@@ -25,12 +25,12 @@ portfolio monitoring system, managed infrastructure, not "hosted Qlib".
 
 | Asset | Path | Role | Live invocation |
 |---|---|---|---|
-| **qlib** | `/root/repos/qlib` | Layer B research engine: Alpha158 factors, 34-model zoo (LGBModel first), DatasetH, backtest engine, PortAnaRecord-style risk analysis, workflow/Recorder experiment tracking (mlflow), online serving (`qlib.workflow.online`), rolling retrain | `from qlib.contrib.model.gbdt import LGBModel` etc. in `src/unlockaid/engine/qlib_engine.py`; engine_source reported |
-| **daily_stock_analysis (DSA)** | `/root/repos/daily_stock_analysis` | Layer G alerting: 14-channel `NotificationService` (Telegram/Slack/Discord/Email/Feishu/WeCom/DingTalk/Pushover/ntfy/Gotify/PushPlus/ServerChan3/AstrBot/Custom webhook), routing/severity/dedup/cooldown contract (`send_with_results`), daily report rendering | `sys.path` import in `src/unlockaid/alerts/dsa_dispatch.py`; per-channel diagnostics returned |
+| **qlib** | `/root/repos/qlib` | Layer B research engine: Alpha158 factors, 34-model zoo (LGBModel first), DatasetH, backtest engine, PortAnaRecord-style risk analysis, workflow/Recorder experiment tracking (mlflow), online serving (`qlib.workflow.online`), rolling retrain | `from qlib.contrib.model.gbdt import LGBModel` etc. in `src/quantizedalert/engine/qlib_engine.py`; engine_source reported |
+| **daily_stock_analysis (DSA)** | `/root/repos/daily_stock_analysis` | Layer G alerting: 14-channel `NotificationService` (Telegram/Slack/Discord/Email/Feishu/WeCom/DingTalk/Pushover/ntfy/Gotify/PushPlus/ServerChan3/AstrBot/Custom webhook), routing/severity/dedup/cooldown contract (`send_with_results`), daily report rendering | `sys.path` import in `src/quantizedalert/alerts/dsa_dispatch.py`; per-channel diagnostics returned |
 
 Both Class 1 assets verified runnable in this project environment (see BUILD_EVIDENCE):
 - qlib 0.9.8.dev31 editable install; `qlib.init` + real CSI300 data (through 2026-09-04) + LGBModel train + `qlib.backtest` = **SMOKE_OK** (`scripts/asset_smoke_qlib.py`).
-- DSA: all 14 senders + `src.config.Config` + `NotificationService` import and dispatch through UnlockAid's venv.
+- DSA: all 14 senders + `src.config.Config` + `NotificationService` import and dispatch through QuantizedAlert's venv.
 
 ### Class 2: Target Scaffolding Templates
 None mandated by objective. (Data bootstrap artifact below is treated as Class 4.)
@@ -61,17 +61,17 @@ N/A — the deliverable is a web platform + CLI, not generated apps.
 
 | # | Deliverable | Layer | Module |
 |---|---|---|---|
-| D1 | Data acquisition/refresh + freshness/staleness/anomaly detection | A | `src/unlockaid/data/` |
-| D2 | Qlib research runner (factor handler → train → experiment record) | B | `src/unlockaid/engine/qlib_engine.py`, `research/` |
+| D1 | Data acquisition/refresh + freshness/staleness/anomaly detection | A | `src/quantizedalert/data/` |
+| D2 | Qlib research runner (factor handler → train → experiment record) | B | `src/quantizedalert/engine/qlib_engine.py`, `research/` |
 | D3 | Validation: in/out-of-sample, walk-forward, drawdown, turnover, cost, stability, sensitivity, overfit flags | C | `research/runner.py` (gates+WF) + `agents/research.py` (`OverfitAuditAgent`) |
 | D4 | Model registry (datasets/factors/models/hyperparams/experiments/validation lineage) | D | `store.py` (models table + qlib `experiment_ref` lineage) |
-| D5 | Deployment: schedule validated models for daily inference | E | `src/unlockaid/deploy/` |
-| D6 | Daily analysis: predictions → rankings → portfolio analytics → risk → signal changes | F | `src/unlockaid/analysis/` |
-| D7 | Alert intelligence: scoring, ranking, quiet hours, thresholds, per-customer channels via **DSA senders** | G | `src/unlockaid/alerts/` |
-| D8 | Dashboard: what changed → affected assets/models → significance → historical context | H | `src/unlockaid/dashboard/` |
-| D9 | Front-door CLI `unlockaid` (init, research, validate, deploy, daily, alert-test, serve, e2e) | all | `src/unlockaid/cli.py` |
-| D10 | Commercial harness: plans, usage metering, Stripe integration surface, unit economics ledger | biz | `src/unlockaid/commercial/` |
-| D11 | AI research automation agents (experiment gen, backtest summary, overfit audit, monitoring, alert triage, explanation) | B–G | `src/unlockaid/agents/` |
+| D5 | Deployment: schedule validated models for daily inference | E | `src/quantizedalert/deploy/` |
+| D6 | Daily analysis: predictions → rankings → portfolio analytics → risk → signal changes | F | `src/quantizedalert/analysis/` |
+| D7 | Alert intelligence: scoring, ranking, quiet hours, thresholds, per-customer channels via **DSA senders** | G | `src/quantizedalert/alerts/` |
+| D8 | Dashboard: what changed → affected assets/models → significance → historical context | H | `src/quantizedalert/dashboard/` |
+| D9 | Front-door CLI `quantizedalert` (init, research, validate, deploy, daily, alert-test, serve, e2e) | all | `src/quantizedalert/cli.py` |
+| D10 | Commercial harness: plans, usage metering, Stripe integration surface, unit economics ledger | biz | `src/quantizedalert/commercial/` |
+| D11 | AI research automation agents (experiment gen, backtest summary, overfit audit, monitoring, alert triage, explanation) | B–G | `src/quantizedalert/agents/` |
 
 ## 4. Constraints
 - MVP = one narrow workflow (§12): CN CSI300 universe → LightGBM/Alpha158 → backtest → validate → registry → daily schedule → analysis → dashboard → ≥1 alert channel delivered.

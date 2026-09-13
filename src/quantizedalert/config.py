@@ -1,4 +1,4 @@
-"""UnlockAid configuration: platform config + per-workspace config.
+"""QuantizedAlert configuration: platform config + per-workspace config.
 
 `config/platform.yaml` holds engine paths + service settings.
 `config/workspaces/<id>.yaml` holds customer-facing config: universe, research
@@ -53,17 +53,19 @@ class PlatformConfig:
         env_map = {"QUANTIZEDALERT_QLIB_URI": "qlib_provider_uri",
                    "UNLOCKAID_QLIB_URI": "qlib_provider_uri",
                    "DSA_PATH": "dsa_path",
-                   "QLIB_PATH": "qlib_path"}
+                   "QLIB_PATH": "qlib_path",
+                   "QUANTIZEDALERT_DB_PATH": "db_path",
+                   "UNLOCKAID_DB_PATH": "db_path"}
         for env_key, field_name in env_map.items():
             if env_key in os.environ:
                 known[field_name] = os.environ[env_key]
         if "qlib_provider_uri" in known:
             known["qlib_provider_uri"] = os.path.expanduser(str(known["qlib_provider_uri"]))
-        for key in ("dsa_path", "qlib_path"):
+        for key in ("dsa_path", "qlib_path", "db_path", "artifact_dir", "workspace_dir", "data_dir"):
             if key in known and not os.path.isabs(str(known[key])):
                 known[key] = str((ROOT / known[key]).resolve())
         if "db_path" in known and not os.path.exists(known["db_path"]):
-            legacy_db = str(ROOT / "data" / "unlockaid.db")
+            legacy_db = str((ROOT / "data" / "unlockaid.db").resolve())
             if os.path.exists(legacy_db):
                 known["db_path"] = legacy_db
         return cls(**known)
@@ -79,6 +81,7 @@ class AlertPrefs:
     routes: dict[str, str] = field(default_factory=dict)   # kind -> DSA route_type
     min_severity: str = "low"
     dedup_window_hours: int = 24
+    min_conviction: float = 0.0
 
 
 @dataclass
@@ -107,6 +110,7 @@ class WorkspaceConfig:
     # deploy
     schedule_time: str = "17:30"
     alerts: AlertPrefs = field(default_factory=AlertPrefs)
+    allow_stale: bool = False
 
     @classmethod
     def load(cls, path: Path) -> WorkspaceConfig:

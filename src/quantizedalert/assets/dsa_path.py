@@ -2,7 +2,7 @@
 
 DSA uses absolute `src.*` / `data_provider.*` imports rooted at its repo dir.
 We prepend its path only while executing the adapter block, so the platform's
-own `unlockaid` namespace is never shadowed and imports resolve to the real
+own `quantizedalert` namespace is never shadowed and imports resolve to the real
 asset code (Playbook Amendment A: invocation, not mention).
 """
 from __future__ import annotations

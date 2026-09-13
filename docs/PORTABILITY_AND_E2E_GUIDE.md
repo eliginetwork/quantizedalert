@@ -1,340 +1,396 @@
-# QuantizedAlert Portability & End-to-End Deployment Guide
+# QuantizedAlert — Architecture, Operation & Cloud Migration Guide
 
-This guide describes how to replicate, deploy, and run the **QuantizedAlert** project from scratch on any fresh Linux machine (Ubuntu 22.04+, Debian 12+, RHEL 9+, etc.).
+This document provides a comprehensive breakdown of what **QuantizedAlert** does, how it works under the hood, how stock research and discovery operate, and how to migrate the entire system to a cloud environment (AWS, GCP, Azure, DigitalOcean, or private Linux servers).
 
 ---
 
-## 1. LLM Usage & OpenAI-Compatible Configuration
+## 1. What This Project Is & How It Works
 
-### Does this project use LLMs?
-**Yes, but strictly for natural-language prose explanation.**
-- **All quant computations are 100% deterministic:** Factor computation (Alpha158), model training (LightGBM, Ridge, Lasso), signal inference, walk-forward validation, information ratio (IR), Sharpe, drawdown, portfolio concentration, and alert gating are executed using deterministic code (`qlib`, `numpy`, `pandas`, `scipy`). QuantizedAlert adheres to an **anti-quack principle**: LLMs **never** generate trading signals, predict numbers, or invent financial data.
-- **Where LLMs are used:** Only in `ResearchExplanationAgent` (invoked by `quantizedalert explain <workspace> <model>`). It translates numerical backtest and validation metrics into plain English for non-specialist stakeholders.
-- **Graceful Fallback:** If no LLM is configured or if the LLM endpoint is down, QuantizedAlert automatically and seamlessly outputs deterministic template prose tagged with `[engine_source=template]` without crashing.
+### The Core Mission
+**QuantizedAlert** is an autonomous, always-on quantitative research, model deployment, portfolio monitoring, and multi-channel alerting system.
 
-### Are LLM settings hardcoded?
-**No.** All LLM settings are fully configurable through standard environment variables in `.env`.
+In traditional finance, quantitative researchers develop predictive models, but operationalizing them requires separate schedulers, data pipelines, model registries, monitoring systems, and notification infrastructure. QuantizedAlert bridges this gap: it packages the entire quant lifecycle behind a single automated pipeline, integrating two proven open-source engines:
+1. **Microsoft Qlib** (`repos/qlib`): Quantitative modeling engine handling market data, 158 alpha factors (Alpha158), machine learning models (LightGBM, Ridge, Lasso), walk-forward validation, and historical backtesting (`TopkDropoutStrategy`).
+2. **Daily Stock Analysis (DSA)** (`repos/daily_stock_analysis`): Production-grade notification engine supporting 14 delivery channels (Telegram, Slack, Discord, Email, Feishu, WeCom, DingTalk, Pushover, ntfy, Gotify, PushPlus, ServerChan3, AstrBot, and custom webhooks).
+
+---
+
+### Architectural Flow (Layer-by-Layer)
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          1. DATA LAYER (A)                              │
+│  Downloads daily-bar market dumps, verifies freshness, checks anomalies │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        2. RESEARCH ENGINE (B)                           │
+│  Alpha158 factor handler -> Trains ML models (LightGBM/Ridge) -> Backtest│
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  3. VALIDATION & MODEL REGISTRY (C, D)                  │
+│  Walk-forward validation, overfit audit, information ratio (IR) gates   │
+│  Stores passed models in SQLite with experiment lineage                 │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   4. SCHEDULER & DEPLOYMENT (E)                         │
+│  APScheduler daily cron (17:30 China Standard Time / market close)      │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     5. DAILY INFERENCE & SIGNALS (F)                    │
+│  Pulls latest bars -> Predicts forward return -> Ranks entire universe   │
+│  Detects large rank changes, portfolio risk, and model score drift      │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     6. ALERT INTELLIGENCE (G)                           │
+│  Multi-factor score: severity, novelty, confidence, portfolio relevance  │
+│  Applies deduplication, quiet hours, daily budget -> Dispatches via DSA │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     7. DASHBOARD & REST API (H)                         │
+│  FastAPI + Jinja web dashboard: models, scorecard, runs, alerts         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Does It Research Stocks Itself or Do You Have to?
+
+**It can do both, and by default it completely researches, analyzes, and ranks stocks itself across an entire market index without you needing to feed it individual stocks.**
+
+Here is the exact breakdown of how research and discovery operate:
+
+### Mode 1: Automated Market Universe Mode (Default & Primary)
+- **You specify a market universe** (e.g. `universe: csi300` or `csi500`).
+- **You do NOT need to feed it stocks.**
+- QuantizedAlert queries Qlib to automatically pull the complete constituent list (e.g. all 300 stocks in China's CSI 300 index).
+- For all 300 stocks, it:
+  1. Computes 158 mathematical price-volume alpha factors (momentum, mean reversion, volatility, moving average ratios, liquidity indicators).
+  2. Runs them through the trained machine learning model.
+  3. Predicts expected forward excess returns.
+  4. **Ranks every single stock in the entire universe from 1 to 300**.
+  5. Monitors rank shifts: if an unmonitored stock jumps significantly (e.g. climbs 25 ranks into the top tier), QuantizedAlert automatically flags it and triggers an alert.
+
+### Mode 2: Custom Baskets (User-Fed Stocks)
+- If you leave `universe` empty and set `instruments: [SH600519, SZ000001, SH601318, ...]`, the system restricts data fetching, factor engineering, model training, and daily inference strictly to your chosen basket.
+
+### Mode 3: Hybrid Universe with Watchlist / Portfolio Overlay (Recommended)
+- You configure a broad universe (e.g. `universe: csi300`), but also supply:
+  - `watchlist`: Specific stocks you want to monitor closely.
+  - `portfolio`: Stocks you currently hold, along with their weights.
+- The system evaluates and ranks the entire 300-stock index, but applies **elevated alert weighting** (`portfolio_relevance`) to your held assets. If a stock in your portfolio slips down the rankings or an anomaly is detected on a stock you hold, high-severity alerts are immediately routed to your channels.
+
+### Mode 4: Factor Discovery Agent (`quantizedalert discover`)
+- You can run the autonomous `FactorDiscoveryAgent` over any date window:
+  ```bash
+  quantizedalert discover demo --start 2025-06-01 --end 2026-06-01
+  ```
+- It computes single-factor Information Coefficients (IC) across market data to identify which alpha factors are generating the strongest predictive signal in the current market environment.
+
+## 3. Advanced Intelligent Enhancements (US Equities, Discovery & Paper Execution)
+
+QuantizedAlert incorporates advanced components from the quantitative trading ecosystem to support US equities, multi-factor conviction gating, and closed-loop paper execution:
+
+### Stage 1: US Equities & Sector Intelligence Expansion (`quantizedalert.market`)
+- **11 S&P 500 GICS Sector Coverage**: Evaluates XLK, XLF, XLV, XLY, XLP, XLE, XLI, XLB, XLU, XLRE, and XLC.
+- **Momentum & Valuation Tracking**: Analyzes 1M, 3M, 6M returns relative to the `SPY` benchmark, RSI-14, and moving average alignment (SMA-50 / SMA-200) to assign a 0–100 sector rating and direction bias (`LONG`, `SHORT`, `NEUTRAL`).
+- **Rate-Limited Data Fetching**: `RateLimiter` ensures requests to Yahoo Finance stay under 1 call per 0.6s with in-memory TTL caching (60s prices, 300s bars).
+- **Turnkey Workspaces**: `config/workspaces/sp500.yaml` and `config/workspaces/us_tech.yaml` targeting US mega-caps and AI leaders.
+- **CLI Inspection**: Run `quantizedalert sectors` to view live ratings and momentum across all 11 sectors.
+
+### Stage 2: SimplyWallSt Discovery & Multi-Factor Conviction Gating (`quantizedalert.discovery`)
+- **SimplyWallSt GraphQL Crawler**: Connects directly to `https://simplywall.st/graphql` using browser headers to query curated investment ideas (Undiscovered Gems, Value Cash Flows, Solid Balance Sheet, High Growth Tech & AI, AI Small Caps, High Insider Buying).
+- **Offline Cache Fallback**: Seamlessly loads candidates from `market_cache/simplywallst/candidates.json` if offline.
+- **SEC Fundamentals & Insider Scoring**: Evaluates revenue growth, net margin, debt/equity, current ratio, and ROE to classify companies into `STRONG`, `MODERATE`, or `WEAK`, alongside executive insider purchasing intensity.
+- **4-Pillar Conviction Gating**:
+  $$\text{Conviction Score} = 0.40 \cdot \text{Quant} + 0.30 \cdot \text{Fundamentals} + 0.20 \cdot \text{Insider} + 0.10 \cdot \text{Sector}$$
+  Only alerts with conviction $\ge 65.0$ pass gating, eliminating noisy alerts and false positives before DSA dispatch.
+
+### Stage 3: Closed-Loop Paper Trading & Shadow Regret (`quantizedalert.execution` & `quantizedalert.learning`)
+- **Paper Trading Engine**: Realistically simulates market and limit orders with customizable slippage (default 5 bps) and half-spread modeling. Tracks cash balance, position cost averaging, market value, and realized PnL.
+- **Automated Alert Execution**: High-conviction alerts automatically trigger paper trade execution with configurable portfolio sizing (e.g. 5% equity allocation).
+- **Shadow Regret Self-Improvement Loop**:
+  - Evaluates every generated signal against subsequent market price changes.
+  - **Type I Regret (False Positive)**: Alert delivered $\to$ trade lost money or lagged benchmark.
+  - **Type II Regret (False Negative)**: Signal suppressed $\to$ stock rallied $\ge 3\%$.
+  - **Adaptive Threshold Tuning**: Recommends dynamic conviction threshold adjustments based on rolling false-positive and false-negative rates to continuously optimize signal quality.
+
+---
+
+## 4. LLM Usage & Natural Language Polish
+
+### Does this project rely on LLMs to predict stocks?
+**No.** All quant computations are **100% deterministic**:
+- Factor extraction (Alpha158), model training (LightGBM, Ridge, Lasso), predictions, backtests, walk-forward folds, Sharpe, Information Ratio (IR), and max drawdown are executed via numerical Python and C++ (`qlib`, `numpy`, `pandas`, `scipy`).
+- QuantizedAlert adheres to a strict **anti-quack principle**: LLMs **never** predict stock returns, generate trading signals, or fabricate numbers.
+
+### Where LLMs Are Used
+LLMs are used **only** in `ResearchExplanationAgent` (invoked via `quantizedalert explain <workspace> <model>`). It translates backtest metrics and overfit audits into plain English for stakeholders.
+
+### Fallback Guarantee
+If no LLM endpoint or API key is provided, the system seamlessly outputs deterministic template prose marked `[engine_source=template]` without error.
 
 ### OpenAI-Compatible Endpoint Support
-QuantizedAlert natively connects to **any OpenAI-compatible API endpoint** using standard variables:
+QuantizedAlert supports any OpenAI-compatible provider:
+```bash
+# In .env:
+OPENAI_MODEL=deepseek-chat           # or gpt-4o-mini, llama3.1:8b, qwen2.5-coder
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx   # API key (or 'ollama' / 'none' for local)
+OPENAI_BASE_URL=https://api.deepseek.com/v1  # or http://localhost:11434/v1
+```
 
-| Variable | Description | Default |
+---
+
+## 4. Cloud Migration Guide
+
+When migrating QuantizedAlert from this machine to the cloud, follow these instructions.
+
+### What Needs to Be Copied vs Excluded
+
+| Path / Asset | Action | Reason |
 |---|---|---|
-| `OPENAI_MODEL` | Model name / ID | *(empty = uses template prose)* |
-| `OPENAI_API_KEY` | API Key for the endpoint | `sk-no-key-required` (if unset) |
-| `OPENAI_BASE_URL` | Base URL of the OpenAI-compatible endpoint | `https://api.openai.com/v1` |
-
-*(Note: Aliases `QUANTIZEDALERT_LLM_MODEL`, `QUANTIZEDALERT_LLM_API_KEY`, `QUANTIZEDALERT_LLM_BASE_URL`, and legacy `UNLOCKAID_LLM_*` are also supported).*
-
-#### Provider Configuration Examples in `.env`:
-
-**1. Official OpenAI:**
-```bash
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
-OPENAI_BASE_URL=https://api.openai.com/v1
-```
-
-**2. DeepSeek API:**
-```bash
-OPENAI_MODEL=deepseek-chat
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
-OPENAI_BASE_URL=https://api.deepseek.com/v1
-```
-
-**3. Local Ollama (Zero cost, offline):**
-```bash
-OPENAI_MODEL=llama3.1:8b
-OPENAI_API_KEY=ollama
-OPENAI_BASE_URL=http://localhost:11434/v1
-```
-
-**4. Local vLLM / LocalAI / SGLang:**
-```bash
-OPENAI_MODEL=qwen2.5-coder
-OPENAI_API_KEY=none
-OPENAI_BASE_URL=http://localhost:8000/v1
-```
-
-**5. OpenRouter:**
-```bash
-OPENAI_MODEL=meta-llama/llama-3.1-8b-instruct
-OPENAI_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxx
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-```
+| `src/quantizedalert/` | **Copy** | Core application package |
+| `src/unlockaid/` | **Copy** | Backward-compatibility shim |
+| `alembic/` & `alembic.ini` | **Copy** | Database schema migrations |
+| `config/platform.yaml` | **Copy** | Platform runtime configuration |
+| `config/workspaces/` | **Copy** | Workspace configurations (YAMLs) |
+| `scripts/` | **Copy** | Smoke tests, verification scripts, DB backup helper |
+| `pyproject.toml` | **Copy** | Package definition & dependencies |
+| `requirements.lock` | **Copy** | Pinned dependencies lockfile |
+| `Makefile` | **Copy** | Build & test shortcuts |
+| `docs/` | **Copy** | Architecture and reference docs |
+| `.env.example` | **Copy** | Template environment configuration |
+| `data/artifacts/` | **Optional** | Pre-trained models (copy if you want to keep existing models) |
+| `data/quantizedalert.db` | **Optional** | SQLite database (copy if you want to preserve history) |
+| `.venv/` | **EXCLUDE** | Host-specific compiled Python binaries and C-extensions |
+| `__pycache__/` | **EXCLUDE** | Host-specific bytecode cache |
+| `.pytest_cache/`, `.ruff_cache/` | **EXCLUDE** | Local cache files |
+| `.git/` | **EXCLUDE / Re-clone** | Not needed if copying source snapshot |
 
 ---
 
-## 2. Component Repositories & Required Tree Structure
+### Cloud Filesystem Tree Structure
 
-QuantizedAlert orchestrates two external Class-1 assets plus market data:
-
-1. **`quantizedalert`** (this repo): Core quant orchestrator, CLI, SQLite WAL database, alert intelligence, dashboard.
-2. **`qlib`** (external repo): Microsoft's quantitative research engine (`github.com/microsoft/qlib`).
-3. **`daily_stock_analysis`** (DSA, external repo): Notification delivery service (`NotificationService`) supporting 14 push channels (Telegram, Slack, Discord, Email, Feishu, Webhooks).
-4. **`qlib_data`** (market data): Daily binary dump for CSI300 (A-share data).
-
-### Do the sibling repositories require LLM variables?
-- **`qlib`**: **NO.** It is a pure C++/Python machine learning and backtesting engine. No LLM variables.
-- **`daily_stock_analysis`**: **NO** (when driven by QuantizedAlert). While DSA standalone includes an LLM analyzer, QuantizedAlert **only** uses DSA's `NotificationService` for dispatching alerts to configured channels. It only needs alert channel tokens (e.g. `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, `CUSTOM_WEBHOOK_URLS`), not LLM keys.
-
----
-
-### Recommended Filesystem Layout
-
-On your target Linux box (e.g. under `/root` or `/home/<user>/workspace`):
+On your cloud instance (e.g. `/root` or `/home/ubuntu`):
 
 ```text
 <base_dir>/
 ├── repos/
-│   ├── qlib/                       # Git clone of Microsoft Qlib
-│   └── daily_stock_analysis/       # Git clone of Daily Stock Analysis
+│   ├── qlib/                       # Clone of github.com/microsoft/qlib
+│   └── daily_stock_analysis/       # Clone of github.com/mizikakao/daily_stock_analysis
 │
-└── work/                           # (or any project directory)
-    └── unlockaid/                  # Project repository directory
-        ├── .env                    # Environment file (from .env.example)
-        ├── .venv/                  # Python 3.11 virtual environment
-        ├── alembic/                # Database migrations
+└── work/
+    └── quantizedalert/             # QuantizedAlert repository root
+        ├── .env                    # Cloud environment variables (from .env.example)
+        ├── .venv/                  # Fresh virtualenv built on cloud host
+        ├── alembic/                # Migration scripts
+        ├── alembic.ini             # Alembic configuration
         ├── config/
-        │   ├── platform.yaml       # Platform asset paths
+        │   ├── platform.yaml       # Portable path configuration
         │   └── workspaces/         # Workspace configs (demo.yaml, etc.)
         ├── data/
-        │   ├── quantizedalert.db   # SQLite database (auto-created)
-        │   ├── artifacts/          # Trained models, metrics, backtests
-        │   └── backups/            # Database backups
-        ├── repos/                  # Symlinks to <base_dir>/repos (or relative paths)
+        │   ├── quantizedalert.db   # Production SQLite DB (or mounted volume)
+        │   ├── artifacts/          # Model artifacts & MLflow runs
+        │   ├── backups/            # Scheduled DB backups
+        │   └── exports/            # E2E JSON exports
+        ├── repos/                  # Symlinks to <base_dir>/repos
         │   ├── qlib -> ../../repos/qlib
         │   └── daily_stock_analysis -> ../../repos/daily_stock_analysis
-        ├── scripts/                # Utility and smoke test scripts
-        └── src/quantizedalert/     # Core Python package
+        ├── scripts/                # Verification & smoke test scripts
+        └── src/                    # Python package source code
 ```
-
-*(Note: Market data dump defaults to `~/.qlib/qlib_data/cn_data` or can be overridden via `QUANTIZEDALERT_QLIB_URI` in `.env`)*.
 
 ---
 
-## 3. Step-by-Step Migration & Setup (Copy to New Box)
+### Step-by-Step Cloud Setup Commands
 
-### Step 1 — OS Prerequisites (Ubuntu/Debian)
-
-Install Python 3.11, build tools, and system dependencies:
-
+#### Step 1: Prepare the Cloud Host (Ubuntu 22.04 / 24.04)
+SSH into your cloud server and install Python 3.11, build tools, and `uv`:
 ```bash
 sudo apt-get update && sudo apt-get install -y \
   build-essential \
-  git \
-  curl \
-  wget \
-  gzip \
-  tar \
-  python3.11 \
-  python3.11-venv \
-  python3.11-dev
-```
+  git curl wget gzip tar \
+  python3.11 python3.11-venv python3.11-dev
 
-*(Optional but recommended: install `uv` for ultra-fast package management)*:
-```bash
+# Install uv (fast Python package manager)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source ~/.bashrc
 ```
 
----
-
-### Step 2 — Directory Setup & Repository Cloning / Copying
-
-Set up the directory structure:
-
+#### Step 2: Set Up Directories and Sibling Repositories
 ```bash
-# Define your base workspace directory
 export BASE_DIR=/root   # or /home/ubuntu
 mkdir -p $BASE_DIR/repos $BASE_DIR/work
 
-# 1. Clone or copy Microsoft Qlib
+# 1. Clone Microsoft Qlib
 cd $BASE_DIR/repos
 git clone https://github.com/microsoft/qlib.git qlib
 
-# 2. Clone or copy Daily Stock Analysis (DSA)
+# 2. Clone Daily Stock Analysis (DSA)
 cd $BASE_DIR/repos
 git clone https://github.com/mizikakao/daily_stock_analysis.git daily_stock_analysis
-# (or rsync your local copy: rsync -avz /source/daily_stock_analysis/ $BASE_DIR/repos/daily_stock_analysis/)
-
-# 3. Copy or clone QuantizedAlert
-cd $BASE_DIR/work
-# rsync -avz --exclude '.venv' --exclude '__pycache__' --exclude '.git' /source/unlockaid/ $BASE_DIR/work/unlockaid/
-# or git clone <your-repo-url> unlockaid
 ```
 
-In the project directory, set up the convenience symlinks pointing to sibling repos:
+#### Step 3: Copy QuantizedAlert from Local Host to Cloud
+From your local development machine, transfer the project files:
 ```bash
-cd $BASE_DIR/work/unlockaid
+rsync -avz --progress \
+  --exclude '.venv' \
+  --exclude '__pycache__' \
+  --exclude '.git' \
+  --exclude '.pytest_cache' \
+  --exclude '.ruff_cache' \
+  /root/work/quantizedalert/ user@<cloud-ip>:$BASE_DIR/work/quantizedalert/
+```
+
+#### Step 4: Configure Symlinks and Virtual Environment
+On the cloud host:
+```bash
+cd $BASE_DIR/work/quantizedalert
+
+# Create convenience symlinks to sibling repos
 mkdir -p repos
 ln -sfn $BASE_DIR/repos/qlib repos/qlib
 ln -sfn $BASE_DIR/repos/daily_stock_analysis repos/daily_stock_analysis
+
+# Create Python 3.11 virtual environment
+uv venv .venv --python 3.11
+
+# Install Qlib into the virtualenv (editable)
+uv pip install --python .venv/bin/python -e $BASE_DIR/repos/qlib
+
+# Install DSA dependencies
+uv pip install --python .venv/bin/python requests "pandas>=2.1,<3" python-dotenv
+
+# Install QuantizedAlert with dev dependencies
+uv pip install --python .venv/bin/python -e ".[dev]"
 ```
 
----
-
-### Step 3 — Python Virtual Environment & Dependency Installation
-
-Create a Python 3.11 virtual environment and install exact dependencies:
-
+#### Step 5: Market Data Acquisition
+QuantizedAlert needs historical daily bars to train models and run inference.
 ```bash
-cd $BASE_DIR/work/unlockaid
-
-# Create virtual environment with Python 3.11
-python3.11 -m venv .venv
-source .venv/bin/activate
-
-# Upgrade pip & packaging tools
-pip install --upgrade pip setuptools wheel
-
-# Install locked dependencies
-pip install -r requirements.lock
-
-# Install qlib in editable mode into the virtual environment
-pip install -e $BASE_DIR/repos/qlib
-
-# Install quantizedalert in editable mode
-pip install -e .
-```
-
----
-
-### Step 4 — Fetch / Copy Market Data Dump
-
-QuantizedAlert runs on CSI300 market data. You have two options:
-
-#### Option A: Automatic download using QuantizedAlert CLI
-```bash
-cd $BASE_DIR/work/unlockaid
+cd $BASE_DIR/work/quantizedalert
+# Automatically download and unpack the open Qlib CN daily bar dump:
 .venv/bin/quantizedalert data refresh
 ```
-This automatically downloads the official open qlib binary dump into `~/.qlib/qlib_data/cn_data`.
+*(Data is stored in `~/.qlib/qlib_data/cn_data`, ~560 MB).*
 
-#### Option B: Direct copy from your source machine
+#### Step 6: Environment Configuration (`.env`)
 ```bash
-mkdir -p ~/.qlib/qlib_data
-rsync -avz /source/qlib_data/cn_data/ ~/.qlib/qlib_data/cn_data/
-```
-
----
-
-### Step 5 — Configure Environment (`.env`)
-
-Copy the environment template:
-
-```bash
-cd $BASE_DIR/work/unlockaid
+cd $BASE_DIR/work/quantizedalert
 cp .env.example .env
+nano .env
 ```
-
-Edit `.env`:
+Key production variables to set:
 ```bash
-# Base paths
+# Core paths
 QUANTIZEDALERT_QLIB_URI=~/.qlib/qlib_data/cn_data
 DSA_PATH=./repos/daily_stock_analysis
 QLIB_PATH=./repos/qlib
 
-# Server port & log level
+# Server & logging
 QUANTIZEDALERT_PORT=8765
 QUANTIZEDALERT_LOG=INFO
 QUANTIZEDALERT_DRY_RUN=0
 
-# Optional Dashboard token (leave blank for open dev mode)
-QUANTIZEDALERT_DASHBOARD_TOKEN=
+# Security: Set a secure dashboard API token
+QUANTIZEDALERT_DASHBOARD_TOKEN=your_secure_random_token_here
 
-# OpenAI-Compatible LLM (Optional — leave blank for deterministic template mode)
-OPENAI_MODEL=
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-
-# Alert channels (Optional — configure as needed)
-# CUSTOM_WEBHOOK_URLS=https://webhook.site/xxx
-# TELEGRAM_BOT_TOKEN=
-# TELEGRAM_CHAT_ID=
+# Notification Channels (set at least one for real alert delivery)
+CUSTOM_WEBHOOK_URLS=https://your-webhook-endpoint.com/alerts
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+SLACK_WEBHOOK_URL=
 ```
 
----
-
-### Step 6 — Initialize Database and Workspaces
-
-Run database migrations and set up sample workspaces:
-
+#### Step 7: Database Migration
+Apply Alembic database migrations to initialize or upgrade the database:
 ```bash
-cd $BASE_DIR/work/unlockaid
-
-# 1. Apply Alembic baseline database migrations
+cd $BASE_DIR/work/quantizedalert
 .venv/bin/alembic upgrade head
-
-# 2. Set up workspace configuration files from examples if not already present
-for ws in demo ridge e2ev; do
-  if [ ! -f "config/workspaces/${ws}.yaml" ] && [ -f "config/workspaces/${ws}.yaml.example" ]; then
-    cp "config/workspaces/${ws}.yaml.example" "config/workspaces/${ws}.yaml"
-  fi
-done
 ```
 
 ---
 
-## 4. Verification & Testing (Run This Last)
+### Step 8: Cloud Production Deployment (Always-On Systemd Service)
 
-Run the verification sequence to prove that everything is operational:
+To run the automated scheduler and web dashboard continuously in the background, create a systemd service:
 
-### 1. Run Automated CI Suite
 ```bash
+sudo tee /etc/systemd/system/quantizedalert.service > /dev/null <<EOF
+[Unit]
+Description=QuantizedAlert Quant Research & Alerting Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/work/quantizedalert
+EnvironmentFile=/root/work/quantizedalert/.env
+ExecStart=/root/work/quantizedalert/.venv/bin/quantizedalert serve --host 0.0.0.0 --port 8765 --cron
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd, enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable quantizedalert
+sudo systemctl start quantizedalert
+
+# Check status
+sudo systemctl status quantizedalert
+```
+
+---
+
+## 5. End-to-End Verification on Cloud
+
+After deploying to the cloud host, run this verification sequence:
+
+```bash
+cd $BASE_DIR/work/quantizedalert
+
+# 1. Run full test suite (must pass 44/44 tests)
 make ci
-# Expected: ruff check passes with 0 errors, pytest passes 44 tests.
-```
 
-### 2. Run Qlib Integration Smoke Test
-```bash
-.venv/bin/python scripts/asset_smoke_qlib.py
-# Expected output:
-#   D.features OK ...
-#   LGBModel train OK ...
-#   backtest OK ...
-#   SMOKE_OK total ...s
-```
+# 2. Run standalone Qlib smoke test
+QUANTIZEDALERT_ALLOW_STALE=1 .venv/bin/python scripts/asset_smoke_qlib.py
 
-### 3. Run Full End-to-End Quant Loop
-```bash
-.venv/bin/quantizedalert e2e e2ev --force
-# Expected output:
-#   [1/4] research+validate: mdl_... passed=True ic=... IR=...
-#   [2/4] deployed + daily inference: 300 predictions, ok=True
-#   [3/4] alerts: ... delivered
-#   [4/4] dashboard payload exported: data/exports/e2e_e2ev.json
-#   E2E_OK
-```
+# 3. Run full E2E loop (train -> validate -> deploy -> inference -> alert dispatch)
+QUANTIZEDALERT_ALLOW_STALE=1 .venv/bin/quantizedalert e2e e2ev --force
 
-### 4. Verify LLM Explanation Polish
-```bash
-# Extract model ID from the latest run
-MODEL_ID=$(sqlite3 data/quantizedalert.db "SELECT model_id FROM models ORDER BY created_at DESC LIMIT 1;")
+# 4. Check that E2E payload was exported
+cat data/exports/e2e_e2ev.json | head -n 30
 
-# Run explanation agent
-.venv/bin/quantizedalert explain e2ev $MODEL_ID
-# If no LLM configured: outputs exact template summary with [engine_source=template]
-# If LLM configured: outputs polished explanation using your configured OpenAI-compatible endpoint
-```
-
-### 5. Launch Web Dashboard
-```bash
-.venv/bin/quantizedalert serve --port 8765
-# Open browser at http://localhost:8765
+# 5. Access the Web Dashboard
+curl -s http://localhost:8765/ | head -n 20
 ```
 
 ---
 
-## 5. Summary Checklist for Moving to a New Machine
+## 6. Cloud Migration Checklist
 
-- [ ] Installed Python 3.11 and build tools (`build-essential`).
-- [ ] Cloned/copied `qlib` to `$BASE_DIR/repos/qlib`.
-- [ ] Cloned/copied `daily_stock_analysis` to `$BASE_DIR/repos/daily_stock_analysis`.
-- [ ] Copied project repository to `$BASE_DIR/work/unlockaid`.
-- [ ] Created Python 3.11 virtualenv `.venv` and installed `requirements.lock`.
-- [ ] Installed `qlib` editable via `pip install -e ../../repos/qlib`.
-- [ ] Market data downloaded or copied to `~/.qlib/qlib_data/cn_data`.
-- [ ] Created `.env` with OpenAI-compatible endpoint variables (or left blank for template mode).
-- [ ] Executed `alembic upgrade head`.
-- [ ] Verified with `make ci` and `.venv/bin/quantizedalert e2e e2ev --force`.
+- [ ] Installed Python 3.11 and build essentials on cloud VM.
+- [ ] Cloned `qlib` and `daily_stock_analysis` to `$BASE_DIR/repos/`.
+- [ ] Rsynced project source to `$BASE_DIR/work/quantizedalert/` (excluding `.venv`, `__pycache__`, `.git`).
+- [ ] Created `.venv` and installed dependencies via `uv pip install -e ".[dev]"`.
+- [ ] Downloaded market data via `.venv/bin/quantizedalert data refresh`.
+- [ ] Configured `.env` with paths, security tokens, and alert channel webhooks.
+- [ ] Ran database migration: `.venv/bin/alembic upgrade head`.
+- [ ] Verified installation with `make ci` and `quantizedalert e2e e2ev`.
+- [ ] Enabled systemd daemon (`quantizedalert.service`) for scheduled daily runs.
