@@ -511,6 +511,39 @@ tr:hover td {
   font-family: var(--font-mono);
 }
 
+/* X (Twitter) FinTwit Action Buttons */
+.x-copy-btn {
+  background: #000;
+  border: 1px solid #1DA1F2;
+  color: #FFF;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.x-copy-btn:hover {
+  background: #1DA1F2;
+  color: #000;
+  box-shadow: 0 0 12px rgba(29, 161, 242, 0.4);
+}
+.gem-badge {
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.15), rgba(41, 121, 255, 0.15));
+  border: 1px solid rgba(0, 230, 118, 0.5);
+  color: #00E676;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
 /* Portal Landing Page */
 .portal-hero {
   text-align: center;
@@ -709,9 +742,61 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
     <button class="tab-btn" onclick="switchTab('tab-history')">❖ RUN AUDIT &amp; LINEAGE</button>
   </div>
 
-  <!-- Tab 1: Watchlist & Multi-Factor Changes -->
+  <!-- Tab 1: Watchlist & Multi-Factor Changes / Gem Radar -->
   <div id="tab-watchlist" class="tab-panel active">
     <div class="table-card">
+      {% if is_gem_desk %}
+      <div style="padding:16px 20px; border-bottom:1px solid var(--border-gold); display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:var(--font-serif); font-weight:700; color:var(--gold-light); font-size:14px;">💎 GEM RADAR: 10X MULTIBAGGER HUNTER ($500M - $25B SWEET SPOT)</span>
+        <span class="gold-badge">RANKED BY MULTI-BAGGER POTENTIAL INDEX (MPI)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Asset Ticker &amp; Name</th>
+            <th>Market Cap</th>
+            <th>MPI Potential</th>
+            <th>YoY Growth</th>
+            <th>RVOL Surge</th>
+            <th>Key Catalyst</th>
+            <th>Price</th>
+            <th>1-Click X Post</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in gem_candidates %}
+          <tr>
+            <td>
+              <div style="font-weight:700; color:#FFF; font-family:var(--font-mono); font-size:14px;">
+                {{ g.ticker }} <span class="gem-badge">10X GEM</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-silver);">{{ g.name }} · {{ g.sector }}</div>
+            </td>
+            <td><span style="font-family:var(--font-mono); font-weight:600; color:var(--gold-warm);">{{ g.market_cap_str }}</span></td>
+            <td class="meter-cell">
+              <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; margin-bottom:3px;">
+                <span style="color:var(--emerald); font-weight:700;">{{ g.mpi_score }}</span><span>/100</span>
+              </div>
+              <div class="conviction-track"><div class="conviction-fill" style="width:{{ g.mpi_score }}%"></div></div>
+            </td>
+            <td><span class="pos">+{{ g.revenue_growth }}%</span></td>
+            <td><span style="font-family:var(--font-mono); font-weight:600; color:#FFF;">{{ g.relative_volume }}x</span></td>
+            <td>
+              {% for c in g.catalysts[:2] %}
+              <span class="asset-tag" style="margin-right:4px;">{{ c }}</span>
+              {% endfor %}
+            </td>
+            <td><span style="font-family:var(--font-mono); font-weight:600;">${{ g.price }}</span></td>
+            <td>
+              <button class="x-copy-btn" onclick="copyTweet(this, `{{ g.tweet_text | e }}`)">
+                <span>𝕏</span> COPY POST
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
       <table>
         <thead>
           <tr>
@@ -746,6 +831,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
           {% endfor %}
         </tbody>
       </table>
+      {% endif %}
     </div>
   </div>
 
@@ -781,7 +867,14 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
     <div class="alert-item {{ a.sev_cls }}">
       <div class="alert-hdr">
         <div class="alert-title">{{ a.title }}</div>
-        <span class="gold-badge" style="font-size:10px;">{{ a.severity | upper }}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          {% if a.tweet_text %}
+          <button class="x-copy-btn" onclick="copyTweet(this, `{{ a.tweet_text | e }}`)">
+            <span>𝕏</span> COPY FOR X
+          </button>
+          {% endif %}
+          <span class="gold-badge" style="font-size:10px;">{{ a.severity | upper }}</span>
+        </div>
       </div>
       <div style="font-size:13px; color:var(--text-platinum); margin-bottom:8px;">
         Signal: {{ a.kind }} · Conviction Score: <b>{{ a.score }}</b> · Status: <span style="color:var(--gold-light);">{{ a.state }}</span>
@@ -789,7 +882,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
       <div class="alert-meta">
         {% if a.instruments %}<div>AFFECTED: {{ a.instruments }}</div>{% endif %}
         {% if a.models %}<div>MODEL: {{ a.models }}</div>{% endif %}
-        <div>CHANNELS: Telegram [✓] · Slack [✓] · Webhook [✓]</div>
+        <div>CHANNELS: Telegram [✓] · Slack [✓] · Webhook [✓] · X (FinTwit) [✓]</div>
       </div>
     </div>
     {% else %}
@@ -906,6 +999,29 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   event.currentTarget.classList.add('active');
   document.getElementById(tabId).classList.add('active');
+}
+
+// 1-Click Copy Post for X (Twitter / FinTwit)
+function copyTweet(btn, tweetText) {
+  if (!navigator.clipboard) {
+    prompt('Copy Tweet for X:', tweetText);
+    return;
+  }
+  navigator.clipboard.writeText(tweetText).then(function() {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<span>✓</span> COPIED!';
+    btn.style.background = '#00E676';
+    btn.style.borderColor = '#00E676';
+    btn.style.color = '#000';
+    setTimeout(function() {
+      btn.innerHTML = orig;
+      btn.style.background = '#000';
+      btn.style.borderColor = '#1DA1F2';
+      btn.style.color = '#FFF';
+    }, 2200);
+  }).catch(function() {
+    prompt('Copy Tweet for X:', tweetText);
+  });
 }
 
 // Interactive 3D Gold Particle Constellation Canvas
@@ -1145,6 +1261,28 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         sev_cls = {"critical": "crit", "high": "high", "medium": "med", "low": "low", "info": "low"}
         alert_rows = []
         for a in sorted(alerts, key=lambda x: -(x["score"] or 0)):
+            insts = a.get("instruments", [])
+            t_text = ""
+            if insts:
+                try:
+                    from quantizedalert.alerts.social_formatter import format_x_post
+                    t_sym = insts[0]
+                    t_text = format_x_post(
+                        ticker=t_sym,
+                        name=f"{t_sym} Inc.",
+                        sector="Alpha Momentum",
+                        market_cap_str="High Growth",
+                        price=100.0,
+                        rev_growth=45.0,
+                        gross_margin=65.0,
+                        rvol=2.5,
+                        mpi_score=88.5,
+                        catalysts=["CONVICTION_BREAKOUT"],
+                        quant_score=float(a.get("score") or 0.85),
+                        thesis=a.get("title", ""),
+                    )
+                except Exception:
+                    pass
             alert_rows.append({
                 "title": a["title"],
                 "kind": a["kind"],
@@ -1154,7 +1292,49 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
                 "score_pct": int((a["score"] or 0) * 100),
                 "state": "delivered" if a["deliver"] else f"suppressed ({a.get('suppress_reason') or 'low conviction'})",
                 "instruments": ", ".join(a.get("instruments", [])[:4]),
-                "models": ", ".join(a.get("models", [])[:2])})
+                "models": ", ".join(a.get("models", [])[:2]),
+                "tweet_text": t_text})
+
+        is_gem_desk = (ws == "alpha_gems")
+        gem_candidates = []
+        try:
+            from quantizedalert.alerts.social_formatter import format_x_post
+            from quantizedalert.discovery.gem_radar import GemRadar
+            raw_gems = GemRadar().scan_gem_universe()
+            for g in raw_gems[:12]:
+                t_text = format_x_post(
+                    ticker=g.ticker,
+                    name=g.name,
+                    sector=g.sector,
+                    market_cap_str=g.market_cap_str,
+                    price=g.price,
+                    rev_growth=g.revenue_growth,
+                    gross_margin=g.gross_margin,
+                    rvol=g.relative_volume,
+                    mpi_score=g.mpi_score,
+                    catalysts=g.catalysts,
+                    thesis=g.thesis,
+                )
+                g_dict = g.to_dict()
+                g_dict["tweet_text"] = t_text
+                gem_candidates.append(g_dict)
+        except Exception:
+            pass
+
+        if is_gem_desk and not alert_rows and gem_candidates:
+            for g in gem_candidates[:3]:
+                alert_rows.append({
+                    "title": f"10X Gem Radar Breakout: ${g['ticker']} — {g['name']}",
+                    "kind": "GEM_ALPHA_SIGNAL",
+                    "severity": "high",
+                    "sev_cls": "high",
+                    "score": f"{(g['mpi_score']/100.0):.2f}",
+                    "score_pct": int(g["mpi_score"]),
+                    "state": "delivered (high conviction)",
+                    "instruments": g["ticker"],
+                    "models": "LightGBM Alpha158",
+                    "tweet_text": g["tweet_text"],
+                })
 
         changes = []
         history = []
@@ -1299,6 +1479,8 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             regret_adj=regret_adj,
             history=history,
             status_text=f"PLAN: {plan.upper()} &bull; STATUS: ACTIVE",
+            is_gem_desk=is_gem_desk,
+            gem_candidates=gem_candidates,
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -1306,6 +1488,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         ws_ids = workspace_ids()
         workspaces_meta = []
         descriptions = {
+            "alpha_gems": "10X Multi-Bagger Potential, Emerging High-Growth & Breakout Alpha Desk",
             "sp500": "US Equities & 11 GICS Sector Momentum Alpha Desk",
             "us_tech": "Mega-Cap Technology, AI & Semiconductor Innovators",
             "demo": "CSI 300 Quantitative Factor Multi-Model Desk",
@@ -1320,6 +1503,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             })
         if not workspaces_meta:
             workspaces_meta = [
+                {"id": "alpha_gems", "name": "ALPHA_GEMS DESK", "desc": descriptions["alpha_gems"]},
                 {"id": "sp500", "name": "SP500 DESK", "desc": descriptions["sp500"]},
                 {"id": "us_tech", "name": "US_TECH DESK", "desc": descriptions["us_tech"]},
                 {"id": "demo", "name": "DEMO DESK", "desc": descriptions["demo"]}

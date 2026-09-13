@@ -1,0 +1,93 @@
+workspace_id: sp500
+name: US S&P 500 Leaders
+plan: individual
+universe: sp500
+instruments:
+- AAPL
+- MSFT
+- NVDA
+- AMZN
+- GOOGL
+- META
+- TSLA
+- BRK-B
+- JPM
+- LLY
+- V
+- UNH
+- XOM
+- JNJ
+- MA
+- COST
+- PG
+- HD
+- WMT
+- BAC
+watchlist:
+- AAPL
+- MSFT
+- NVDA
+- AMZN
+- GOOGL
+- META
+- TSLA
+- JPM
+- LLY
+- XOM
+portfolio:
+- instrument: AAPL
+  weight: 0.20
+- instrument: MSFT
+  weight: 0.20
+- instrument: NVDA
+  weight: 0.20
+- instrument: AMZN
+  weight: 0.20
+- instrument: GOOGL
+  weight: 0.20
+region: us
+factor_set: Alpha158
+model_type: lightgbm
+hyperparameters:
+  learning_rate: 0.05
+  num_leaves: 64
+  colsample_bytree: 0.88
+  subsample: 0.88
+  num_boost_round: 200
+  early_stopping_rounds: 50
+  n_jobs: 8
+train_segments:
+  train:
+  - '2024-01-01'
+  - '2025-06-30'
+  valid:
+  - '2025-07-01'
+  - '2025-12-31'
+  test:
+  - '2026-01-01'
+  - '2026-09-01'
+handler_range:
+- '2024-01-01'
+- '2026-09-01'
+fit_range:
+- '2024-01-01'
+- '2025-06-30'
+backtest:
+  topk: 10
+  n_drop: 2
+  account: 1000000
+  benchmark: SPY
+schedule_time: '16:30'
+alerts:
+  min_score: 0.50
+  max_alerts_per_day: 5
+  quiet_hours:
+  - '23:00'
+  - 07:00
+  quiet_hours_tz: America/New_York
+  channels:
+  - custom_webhook
+  routes: {}
+  min_severity: medium
+  dedup_window_hours: 24
+

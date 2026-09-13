@@ -1,0 +1,89 @@
+workspace_id: alpha_gems
+name: Alpha Gems 10X Potential Desk
+plan: institutional
+universe: alpha_gems
+instruments:
+- ASTS
+- PLTR
+- APP
+- RKLB
+- HIMS
+- CELH
+- DUOL
+- IONQ
+- ALAB
+- TEM
+- CRWD
+- SYM
+- CAVA
+- SOFI
+- SMCI
+- ARM
+- KTOS
+- POWI
+- INOD
+- IOT
+watchlist:
+- ASTS
+- PLTR
+- APP
+- RKLB
+- HIMS
+- ALAB
+- TEM
+- DUOL
+portfolio:
+- instrument: ASTS
+  weight: 0.25
+- instrument: PLTR
+  weight: 0.25
+- instrument: APP
+  weight: 0.25
+- instrument: RKLB
+  weight: 0.25
+region: us
+factor_set: Alpha158
+model_type: lightgbm
+hyperparameters:
+  learning_rate: 0.05
+  num_leaves: 64
+  colsample_bytree: 0.88
+  subsample: 0.88
+  num_boost_round: 200
+  early_stopping_rounds: 50
+  n_jobs: 8
+train_segments:
+  train:
+  - '2024-01-01'
+  - '2025-06-30'
+  valid:
+  - '2025-07-01'
+  - '2025-12-31'
+  test:
+  - '2026-01-01'
+  - '2026-09-01'
+handler_range:
+- '2024-01-01'
+- '2026-09-01'
+fit_range:
+- '2024-01-01'
+- '2025-06-30'
+backtest:
+  topk: 5
+  n_drop: 1
+  account: 500000
+  benchmark: QQQ
+schedule_time: '16:30'
+alerts:
+  min_score: 0.50
+  min_conviction: 68.0
+  max_alerts_per_day: 5
+  quiet_hours:
+  - '23:00'
+  - '07:00'
+  quiet_hours_tz: America/New_York
+  channels:
+  - custom_webhook
+  routes: {}
+  min_severity: medium
+  dedup_window_hours: 24
