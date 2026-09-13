@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from quantizedalert.config import WorkspaceConfig
 from quantizedalert.market.sector_intelligence import (

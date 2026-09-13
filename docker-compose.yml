@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantizedalert-dashboard
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./market_cache:/app/market_cache
+      - qlib_data:/root/.qlib/qlib_data
+    command: ["quantizedalert", "serve", "--host", "0.0.0.0", "--port", "8765"]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantizedalert-scheduler
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./market_cache:/app/market_cache
+      - qlib_data:/root/.qlib/qlib_data
+    command: ["quantizedalert", "serve", "--cron"]
+
+volumes:
+  qlib_data:
+    name: quantizedalert_qlib_data
+

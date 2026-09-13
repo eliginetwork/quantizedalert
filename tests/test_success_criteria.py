@@ -19,8 +19,19 @@ from quantizedalert.store import Store
 
 PROVIDER = Path(os.path.expanduser("~/.qlib/qlib_data/cn_data"))
 HAS_QLIB_DATA = (PROVIDER / "calendars" / "day.txt").exists()
-DSA_PATH = "/root/repos/daily_stock_analysis"
-HAS_DSA = Path(DSA_PATH, "src", "notification.py").exists()
+DSA_PATH = os.environ.get("DSA_PATH") or str(Path(__file__).resolve().parents[1] / "repos" / "daily_stock_analysis")
+if not (Path(DSA_PATH) / "src" / "notification.py").exists():
+    for candidate in ["/root/repos/daily_stock_analysis", "/home/ubuntu/repos/daily_stock_analysis"]:
+        try:
+            if (Path(candidate) / "src" / "notification.py").exists():
+                DSA_PATH = candidate
+                break
+        except PermissionError:
+            pass
+try:
+    HAS_DSA = (Path(DSA_PATH) / "src" / "notification.py").exists()
+except PermissionError:
+    HAS_DSA = False
 
 live = pytest.mark.skipif(not HAS_QLIB_DATA, reason="qlib cn dump not present")
 

@@ -20,7 +20,6 @@ import pandas as pd
 
 from quantizedalert.market.yfinance_client import (
     get_historical_prices,
-    get_stock_fundamentals,
 )
 
 logger = logging.getLogger("quantizedalert.market.sector_intel")

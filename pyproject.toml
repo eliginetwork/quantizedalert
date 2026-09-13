@@ -19,6 +19,12 @@ dependencies = [
     "sqlalchemy>=2.0,<2.1",
     "python-dotenv==1.2.3",
     "dill==0.4.1",
+    "yfinance>=0.2.36",
+    "tenacity>=8.2.0",
+    "exchange-calendars>=4.5",
+    "cvxpy>=1.6.0,<1.8.0",
+    "markdown2>=2.4.0",
+    "fake-useragent>=1.4.0",
 ]
 
 [project.optional-dependencies]

@@ -1,7 +1,7 @@
 """Tests for Stage 3: Closed-Loop Paper Trading & Shadow Regret."""
 from __future__ import annotations
 
-from quantizedalert.execution.models import OrderAction, OrderStatus, OrderType
+from quantizedalert.execution.models import OrderAction, OrderStatus
 from quantizedalert.execution.paper_engine import PaperTradingEngine
 from quantizedalert.learning.shadow_regret import RegretType, ShadowRegretEngine
 from quantizedalert.schemas import AlertDecision, AlertEvent, Severity

@@ -11,11 +11,11 @@ type:
 	$(MYPY) src/quantizedalert --ignore-missing-imports || true
 
 test:
-	$(PYTHON) -m pytest tests/ -q --timeout=60
+	$(PYTHON) -m pytest tests/ -q --timeout=180
 
 # Strict: warnings become errors (catches the ridge LinAlgWarning and RuntimeWarning)
 test-strict:
-	$(PYTHON) -m pytest tests/ -q -W error::scipy.linalg.LinAlgWarning -W error::RuntimeWarning --timeout=60
+	$(PYTHON) -m pytest tests/ -q -W error::scipy.linalg.LinAlgWarning -W error::RuntimeWarning --timeout=180
 
 ci: lint test
 

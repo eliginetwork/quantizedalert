@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -92,9 +93,20 @@ def test_novelty_uses_asof_not_wall_clock(tmp_path):
 
 # ---- M8: dsa_importable does not leave `src` in sys.modules --------------
 def test_dsa_modules_purged_after_context():
-    dsa_path = "/root/repos/daily_stock_analysis"
+    dsa_path = os.environ.get("DSA_PATH") or str(Path(__file__).resolve().parents[1] / "repos" / "daily_stock_analysis")
     if not os.path.isdir(dsa_path):
-        pytest.skip("DSA repo not present")
+        for candidate in ["/root/repos/daily_stock_analysis", "/home/ubuntu/repos/daily_stock_analysis"]:
+            try:
+                if os.path.isdir(candidate):
+                    dsa_path = candidate
+                    break
+            except PermissionError:
+                pass
+    try:
+        if not os.path.isdir(dsa_path):
+            pytest.skip("DSA repo not present")
+    except PermissionError:
+        pytest.skip("DSA repo not accessible")
     from quantizedalert.assets.dsa_path import dsa_importable, dsa_module
     with dsa_importable(dsa_path):
         dsa_module("src.notification", dsa_path)

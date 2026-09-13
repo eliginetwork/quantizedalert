@@ -215,23 +215,29 @@ On your cloud instance (e.g. `/root` or `/home/ubuntu`):
 
 ### Step-by-Step Cloud Setup Commands
 
-#### Step 1: Prepare the Cloud Host (Ubuntu 22.04 / 24.04)
-SSH into your cloud server and install Python 3.11, build tools, and `uv`:
+#### Step 1: Prepare the Cloud Host (Ubuntu 20.04 / 22.04 / 24.04 — x86_64 or ARM64 / aarch64)
+SSH into your cloud server (e.g. `ubuntu@150.136.72.148`) and install essential build tools:
 ```bash
 sudo apt-get update && sudo apt-get install -y \
   build-essential \
   git curl wget gzip tar \
-  python3.11 python3.11-venv python3.11-dev
+  libgomp1 sqlite3 rsync
+```
 
-# Install uv (fast Python package manager)
+**Install `uv` (Ultra-fast Python package manager) and standalone Python 3.11:**
+```bash
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source ~/.bashrc
+
+# Install standalone CPython 3.11 on any Linux architecture (x86_64 or ARM64):
+~/.local/bin/uv python install 3.11
 ```
 
 #### Step 2: Set Up Directories and Sibling Repositories
 ```bash
-export BASE_DIR=/root   # or /home/ubuntu
-mkdir -p $BASE_DIR/repos $BASE_DIR/work
+export BASE_DIR=/home/ubuntu   # or /root
+mkdir -p $BASE_DIR/repos $BASE_DIR/quantizedalert
 
 # 1. Clone Microsoft Qlib
 cd $BASE_DIR/repos
@@ -243,61 +249,106 @@ git clone https://github.com/mizikakao/daily_stock_analysis.git daily_stock_anal
 ```
 
 #### Step 3: Copy QuantizedAlert from Local Host to Cloud
-From your local development machine, transfer the project files:
+From your local development machine, transfer the project files and market data:
 ```bash
+# 1. Transfer QuantizedAlert codebase
 rsync -avz --progress \
   --exclude '.venv' \
   --exclude '__pycache__' \
   --exclude '.git' \
   --exclude '.pytest_cache' \
   --exclude '.ruff_cache' \
-  /root/work/quantizedalert/ user@<cloud-ip>:$BASE_DIR/work/quantizedalert/
+  /root/work/quantizedalert/ user@<cloud-ip>:$BASE_DIR/quantizedalert/
+
+# 2. Transfer Sibling Repositories (if pre-configured)
+rsync -avz --progress \
+  --exclude '.venv' \
+  --exclude '__pycache__' \
+  --exclude '.git' \
+  /root/repos/ user@<cloud-ip>:$BASE_DIR/repos/
+
+# 3. Transfer Qlib Market Binary Data (avoids re-downloading ~1.4GB over slow lines)
+rsync -avz --progress \
+  /root/.qlib/qlib_data/ user@<cloud-ip>:~/.qlib/qlib_data/
 ```
 
 #### Step 4: Configure Symlinks and Virtual Environment
 On the cloud host:
 ```bash
-cd $BASE_DIR/work/quantizedalert
+cd $BASE_DIR/quantizedalert
 
 # Create convenience symlinks to sibling repos
 mkdir -p repos
 ln -sfn $BASE_DIR/repos/qlib repos/qlib
 ln -sfn $BASE_DIR/repos/daily_stock_analysis repos/daily_stock_analysis
 
-# Create Python 3.11 virtual environment
-uv venv .venv --python 3.11
+# Create Python 3.11 virtual environment using uv
+~/.local/bin/uv venv .venv --python 3.11
 
 # Install Qlib into the virtualenv (editable)
-uv pip install --python .venv/bin/python -e $BASE_DIR/repos/qlib
+~/.local/bin/uv pip install --python .venv/bin/python -e $BASE_DIR/repos/qlib
 
-# Install DSA dependencies
-uv pip install --python .venv/bin/python requests "pandas>=2.1,<3" python-dotenv
-
-# Install QuantizedAlert with dev dependencies
-uv pip install --python .venv/bin/python -e ".[dev]"
+# Install QuantizedAlert with dev, billing, and LLM extras
+~/.local/bin/uv pip install --python .venv/bin/python -e ".[dev,billing,llm]"
 ```
 
-#### Step 5: Market Data Acquisition
-QuantizedAlert needs historical daily bars to train models and run inference.
+#### Step 5: Install Cloudflare Tunnel (`cloudflared`)
+To securely access the QuantizedAlert dashboard and APIs without exposing public ports:
 ```bash
-cd $BASE_DIR/work/quantizedalert
-# Automatically download and unpack the open Qlib CN daily bar dump:
-.venv/bin/quantizedalert data refresh
+# For ARM64 / aarch64 (Oracle Cloud Ampere, etc.):
+curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
+sudo dpkg -i cloudflared.deb
+rm cloudflared.deb
+
+# (For x86_64 / amd64):
+# curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+# sudo dpkg -i cloudflared.deb
+
+# Verify installation (DO NOT START TUNNEL until configured):
+cloudflared --version
 ```
-*(Data is stored in `~/.qlib/qlib_data/cn_data`, ~560 MB).*
+
+**Configuring Cloudflare Tunnel (Run when ready):**
+```bash
+# 1. Login to Cloudflare
+cloudflared tunnel login
+
+# 2. Create the tunnel
+cloudflared tunnel create quantizedalert
+
+# 3. Configure ~/.cloudflared/config.yml:
+cat <<EOF > ~/.cloudflared/config.yml
+tunnel: <TUNNEL-UUID>
+credentials-file: /home/ubuntu/.cloudflared/<TUNNEL-UUID>.json
+ingress:
+  - hostname: quant.yourdomain.com
+    service: http://localhost:8765
+  - service: http_status:404
+EOF
+
+# 4. Route DNS:
+cloudflared tunnel route dns quantizedalert quant.yourdomain.com
+
+# 5. Run tunnel (or install as system service):
+# cloudflared tunnel run quantizedalert
+# Or: sudo cloudflared service install
+```
 
 #### Step 6: Environment Configuration (`.env`)
+> [!IMPORTANT]
+> Always verify and update `.env` on the cloud server before starting the service. Set secure tokens and actual notification webhooks.
+
 ```bash
-cd $BASE_DIR/work/quantizedalert
-cp .env.example .env
+cd $BASE_DIR/quantizedalert
+cp -n .env.example .env
 nano .env
 ```
-Key production variables to set:
+Key production variables to verify:
 ```bash
 # Core paths
 QUANTIZEDALERT_QLIB_URI=~/.qlib/qlib_data/cn_data
-DSA_PATH=./repos/daily_stock_analysis
-QLIB_PATH=./repos/qlib
+DSA_PATH=/home/ubuntu/repos/daily_stock_analysis
+QLIB_PATH=/home/ubuntu/repos/qlib
 
 # Server & logging
 QUANTIZEDALERT_PORT=8765
@@ -315,30 +366,31 @@ SLACK_WEBHOOK_URL=
 ```
 
 #### Step 7: Database Migration
-Apply Alembic database migrations to initialize or upgrade the database:
+Execute Alembic database migrations to initialize or upgrade the SQLite schema:
 ```bash
-cd $BASE_DIR/work/quantizedalert
+cd $BASE_DIR/quantizedalert
 .venv/bin/alembic upgrade head
 ```
 
 ---
 
-### Step 8: Cloud Production Deployment (Always-On Systemd Service)
+### Step 8: Production Deployment Options
 
-To run the automated scheduler and web dashboard continuously in the background, create a systemd service:
+#### Option A: Native Systemd Service (Recommended for dedicated VM)
 
+Create `/etc/systemd/system/quantizedalert.service`:
 ```bash
 sudo tee /etc/systemd/system/quantizedalert.service > /dev/null <<EOF
 [Unit]
-Description=QuantizedAlert Quant Research & Alerting Service
+Description=QuantizedAlert Autonomous Quant Research & Alerting Service
 After=network.target
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/root/work/quantizedalert
-EnvironmentFile=/root/work/quantizedalert/.env
-ExecStart=/root/work/quantizedalert/.venv/bin/quantizedalert serve --host 0.0.0.0 --port 8765 --cron
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quantizedalert
+EnvironmentFile=/home/ubuntu/quantizedalert/.env
+ExecStart=/home/ubuntu/quantizedalert/.venv/bin/quantizedalert serve --host 0.0.0.0 --port 8765 --cron
 Restart=always
 RestartSec=10
 LimitNOFILE=65536
@@ -347,13 +399,26 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd, enable and start service
+# Reload systemd and enable service:
 sudo systemctl daemon-reload
 sudo systemctl enable quantizedalert
-sudo systemctl start quantizedalert
 
-# Check status
-sudo systemctl status quantizedalert
+# Start only after .env is verified:
+# sudo systemctl start quantizedalert
+```
+
+#### Option B: Docker Compose Deployment
+
+QuantizedAlert includes a containerized deployment setup:
+```bash
+cd $BASE_DIR/quantizedalert
+
+# Build and run with docker compose (mounts persistent data and models):
+docker compose build
+docker compose up -d
+
+# Check container logs:
+docker compose logs -f
 ```
 
 ---

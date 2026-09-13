@@ -20,11 +20,10 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     from quantizedalert.store import SCHEMA
-    conn = op.get_bind()
     for stmt in SCHEMA.strip().split(";"):
         stmt = stmt.strip()
         if stmt:
-            conn.execute(sa.text(stmt))
+            op.execute(sa.text(stmt))
 
 
 def downgrade() -> None:

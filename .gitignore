@@ -26,6 +26,9 @@ data/backups/
 .env.*
 !.env.example
 
+# Runtime caches
+market_cache/
+
 # OS / editor
 .DS_Store
 *.log
