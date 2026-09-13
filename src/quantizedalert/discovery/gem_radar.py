@@ -338,3 +338,4 @@ class GemRadar:
             self.cache_file.write_text(json.dumps(data, indent=2))
         except Exception as e:
             logger.warning("Failed saving gem radar cache: %s", e)
+

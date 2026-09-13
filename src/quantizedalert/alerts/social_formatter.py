@@ -129,3 +129,4 @@ def generate_social_payload(candidate_dict: dict[str, Any], quant_score: float =
         "levels": levels,
         "char_count": len(tweet_text),
     }
+

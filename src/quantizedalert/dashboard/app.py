@@ -544,6 +544,190 @@ tr:hover td {
   letter-spacing: 0.05em;
 }
 
+/* Desk Mandate & Strategy Profile Banner */
+.mandate-banner {
+  margin: 20px 36px 4px;
+  background: linear-gradient(135deg, rgba(16, 22, 34, 0.88), rgba(11, 15, 23, 0.95));
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-gold);
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,244,208,0.2);
+}
+.mandate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+.mandate-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mandate-crest {
+  font-size: 24px;
+}
+.mandate-title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 800;
+  color: #FFF;
+  letter-spacing: 0.06em;
+}
+.mandate-sub {
+  font-size: 11px;
+  color: var(--gold-warm);
+  font-family: var(--font-mono);
+}
+.mandate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.mandate-col {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.mandate-lbl {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--gold-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mandate-val {
+  font-size: 12px;
+  color: var(--text-platinum);
+  line-height: 1.5;
+}
+
+/* Interactive Explanatory Modals */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(5, 7, 11, 0.85);
+  backdrop-filter: blur(14px);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.2s ease;
+}
+.modal-backdrop.active {
+  display: flex;
+}
+.modal-dialog {
+  background: #0B0F17;
+  border: 1px solid var(--border-gold);
+  border-radius: 18px;
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 40px var(--gold-glow);
+  position: relative;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modal-close {
+  position: absolute;
+  top: 16px; right: 18px;
+  background: transparent;
+  border: none;
+  color: var(--text-silver);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s ease;
+}
+.modal-close:hover { color: var(--gold-primary); }
+.modal-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gold-primary);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.modal-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 800;
+  color: #FFF;
+  margin-bottom: 14px;
+}
+.modal-body {
+  font-size: 13px;
+  color: var(--text-platinum);
+  line-height: 1.6;
+}
+.modal-section-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold-warm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-holdings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.holding-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.holding-sym {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #FFF;
+}
+.holding-name {
+  font-size: 11px;
+  color: var(--text-silver);
+}
+.info-btn {
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--gold-warm);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.info-btn:hover {
+  background: var(--gold-primary);
+  color: #000;
+}
+
 /* Portal Landing Page */
 .portal-hero {
   text-align: center;
@@ -709,25 +893,65 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
     </div>
   </header>
 
+  <!-- Desk Mandate & Strategy Profile Space -->
+  <div class="mandate-banner">
+    <div class="mandate-header">
+      <div class="mandate-title-group">
+        <span class="mandate-crest">{{ desk_crest }}</span>
+        <div>
+          <div class="mandate-title">{{ desk_title }}</div>
+          <div class="mandate-sub">{{ desk_tagline }}</div>
+        </div>
+      </div>
+      <button class="gold-badge" style="cursor:pointer;" onclick="openInfoModal('platform')">ℹ️ HOW THIS DESK WORKS</button>
+    </div>
+    <div class="mandate-grid">
+      <div class="mandate-col">
+        <div class="mandate-lbl"><span>TARGET UNIVERSE</span> <span>01</span></div>
+        <div class="mandate-val">{{ desk_universe_desc }}</div>
+      </div>
+      <div class="mandate-col">
+        <div class="mandate-lbl"><span>MODEL STRATEGY</span> <span>02</span></div>
+        <div class="mandate-val">{{ desk_model_strategy }}</div>
+      </div>
+      <div class="mandate-col">
+        <div class="mandate-lbl"><span>EXECUTION &amp; GATING</span> <span>03</span></div>
+        <div class="mandate-val">{{ desk_gating_policy }}</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 3D Gold Deck Cards -->
   <div class="deck-grid">
     <div class="deck-card">
-      <div class="card-tag"><span>MODEL &amp; LINEAGE</span><span>01</span></div>
+      <div class="card-tag">
+        <span>MODEL &amp; LINEAGE</span>
+        <button class="info-btn" title="How model lineage works" onclick="openInfoModal('model')">?</button>
+      </div>
       <div class="card-val gold">{{ model_id }}</div>
       <div class="card-sub">{{ model_desc }} · {{ n_pred }} scored</div>
     </div>
     <div class="deck-card">
-      <div class="card-tag"><span>CONVICTION GATE</span><span>02</span></div>
+      <div class="card-tag">
+        <span>CONVICTION GATE</span>
+        <button class="info-btn" title="How conviction gating works" onclick="openInfoModal('gate')">?</button>
+      </div>
       <div class="card-val">{{ n_delivered }} / {{ n_events }}</div>
       <div class="card-sub">Gate &ge; 65.0 · {{ n_suppressed }} Noise Filtered · {{ max_alerts }}/day</div>
     </div>
     <div class="deck-card">
-      <div class="card-tag"><span>MACRO SECTOR REGIME</span><span>03</span></div>
+      <div class="card-tag">
+        <span>MACRO SECTOR REGIME</span>
+        <button class="info-btn" title="How sector regimes work" onclick="openInfoModal('regime')">?</button>
+      </div>
       <div class="card-val gold">{{ top_sector_etf }} · {{ top_sector_name }}</div>
       <div class="card-sub">Rating: {{ top_sector_rating }}/100 · {{ top_sector_dir }} Bias</div>
     </div>
     <div class="deck-card">
-      <div class="card-tag"><span>PAPER CAPITAL ACCOUNT</span><span>04</span></div>
+      <div class="card-tag">
+        <span>PAPER CAPITAL ACCOUNT</span>
+        <button class="info-btn" title="How paper trading works" onclick="openInfoModal('paper')">?</button>
+      </div>
       <div class="card-val">${{ paper_equity }}</div>
       <div class="card-sub">PnL: <span class="{{ 'pos' if paper_pnl_is_pos else 'neg' }}">${{ paper_pnl }}</span> · Cash: ${{ paper_cash }}</div>
     </div>
@@ -837,12 +1061,19 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
 
   <!-- Tab 2: S&P 500 GICS Sectors -->
   <div id="tab-sectors" class="tab-panel">
+    <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-family:var(--font-serif); font-size:15px; color:var(--gold-light);">11 GICS ECONOMIC SECTOR ALLOCATIONS</div>
+      <div class="gold-badge">CLICK ANY SECTOR TO VIEW CONSTITUENT STOCKS &amp; ROTATION STATUS</div>
+    </div>
     <div class="sector-grid">
       {% for s in sectors %}
-      <div class="sector-card">
+      <div class="sector-card" style="cursor:pointer;" onclick="openSectorModal('{{ s.etf }}')">
         <div class="sector-hdr">
           <div>
-            <div style="font-size:11px; font-family:var(--font-mono); color:var(--gold-warm);">{{ s.etf }}</div>
+            <div style="font-size:11px; font-family:var(--font-mono); color:var(--gold-warm); display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <span>{{ s.etf }}</span>
+              <span style="font-size:9px; background:rgba(212,175,55,0.18); border:1px solid rgba(212,175,55,0.3); padding:1px 5px; border-radius:3px; color:var(--gold-light);">🔍 DETAILS</span>
+            </div>
             <div class="sector-name">{{ s.name }}</div>
           </div>
           <span class="sector-dir {{ s.direction }}">{{ s.direction }}</span>
@@ -992,6 +1223,18 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
   </footer>
 </div>
 
+<!-- Interactive Explanatory Modal Backdrop -->
+<div id="info-modal" class="modal-backdrop" onclick="closeModal(event)">
+  <div class="modal-dialog" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+    <div id="modal-tag" class="modal-tag">QUANTITATIVE INTELLIGENCE</div>
+    <div id="modal-title" class="modal-title">Intelligence Overview</div>
+    <div id="modal-content" class="modal-body">
+      Loading intelligence...
+    </div>
+  </div>
+</div>
+
 <script>
 // Interactive Tab Switching
 function switchTab(tabId) {
@@ -1022,6 +1265,103 @@ function copyTweet(btn, tweetText) {
   }).catch(function() {
     prompt('Copy Tweet for X:', tweetText);
   });
+}
+
+// Interactive Knowledge Base & GICS Database
+const SECTORS_DB = {{ sectors_json | safe }};
+
+const INFO_TOPICS = {
+  platform: {
+    tag: "INSTITUTIONAL ARCHITECTURE",
+    title: "How QuantizedAlert Works",
+    body: `<p>QuantizedAlert is an <b>autonomous quantitative research and alert engine</b> engineered to generate asymmetric alpha while eliminating emotional trading.</p>
+    <div class="modal-section-title">◈ 4-Stage Quantitative Pipeline</div>
+    <p><b>1. Macro Sector Regime:</b> Continuously tracks the 11 S&amp;P 500 GICS sectors to determine whether institutional capital is rotating into or out of that industry.</p>
+    <p><b>2. Alpha158 Feature Engine:</b> Computes 158 mathematical factors (momentum, volume-price divergence, volatility ratios) across every tracked stock.</p>
+    <p><b>3. Machine Learning Forecasting:</b> LightGBM gradient-boosted trees predict expected forward return rankings without lookahead bias.</p>
+    <p><b>4. Conviction Gate &amp; Paper Execution:</b> Only top signals (Conviction &ge; 68.0) trigger alerts and execute orders in the $100K simulated book.</p>`
+  },
+  model: {
+    tag: "QUANTITATIVE ML CORE",
+    title: "Model Lineage & Forecasting",
+    body: `<p>This desk runs automated machine learning models trained on clean financial time series.</p>
+    <div class="modal-section-title">◈ Key Highlights</div>
+    <p><b>• Factor Library:</b> Alpha158 computes 158 price, volume, and volatility signals per stock per trading day.</p>
+    <p><b>• Overfitting Prevention:</b> Walk-forward rolling train/validation splits ensure models adapt to regime shifts without memorizing past data.</p>
+    <p><b>• Continuous Audit:</b> The Model Lineage ledger tracks exact hyperparameter configurations, test statistics, and deployment timestamps.</p>`
+  },
+  gate: {
+    tag: "RISK MITIGATION & FILTERING",
+    title: "The Conviction Gate",
+    body: `<p>QuantizedAlert's core mission is: <b>Fewer, higher-value alerts.</b></p>
+    <div class="modal-section-title">◈ Why 70% of Signals are Suppressed</div>
+    <p>Raw machine learning models generate dozens of noisy candidates every session. The Conviction Gate requires:</p>
+    <p><b>1. Minimum Alpha Score:</b> Must exceed the workspace threshold (e.g. 0.50).</p>
+    <p><b>2. Macro Alignment:</b> Long signals are blocked if the stock's underlying sector is in a severe macro downtrend.</p>
+    <p><b>3. Daily Budget:</b> Maximum 5 delivered alerts per day prevents notification fatigue.</p>`
+  },
+  regime: {
+    tag: "S&P 500 GICS SECTOR REGIMES",
+    title: "Macro Sector Intelligence & Auto-Rotation",
+    body: `<p>Individual stocks rarely move against their sector tides. QuantizedAlert monitors all 11 official S&amp;P 500 GICS sectors in real time.</p>
+    <div class="modal-section-title">◈ Auto-Rotation Mechanics</div>
+    <p><b>• Rating &ge; 70 (LONG Bias):</b> Broad capital inflows; buy signals in this sector are amplified.</p>
+    <p><b>• Rating &le; 45 (SHORT Bias):</b> Capital flight; long buy signals in this sector are suppressed to prevent catching falling knives.</p>
+    <p><b>• Dynamic Rotation:</b> Capital automatically rotates into the strongest leading sectors on daily market rebalances.</p>`
+  },
+  paper: {
+    tag: "SIMULATED EXECUTION & LEARNING",
+    title: "Paper Trading & Shadow Regret Learner",
+    body: `<p>Every approved alert is automatically executed in the simulated $100,000 capital book with realistic institutional conditions.</p>
+    <div class="modal-section-title">◈ Closed-Loop Learning</div>
+    <p><b>• Realism:</b> 5 basis points (bps) slippage and half-spread impact are simulated on every fill.</p>
+    <p><b>• Shadow Regret:</b> Tracks every trade for 20 sessions. If an alert loses money (False Positive), the engine automatically increases the conviction threshold to become pickier tomorrow.</p>`
+  }
+};
+
+function openInfoModal(topic) {
+  const info = INFO_TOPICS[topic] || INFO_TOPICS['platform'];
+  document.getElementById('modal-tag').innerText = info.tag;
+  document.getElementById('modal-title').innerText = info.title;
+  document.getElementById('modal-content').innerHTML = info.body;
+  document.getElementById('info-modal').classList.add('active');
+}
+
+function openSectorModal(etf) {
+  const s = SECTORS_DB[etf] || {
+    name: etf + ' Sector SPDR',
+    role: 'S&P 500 Economic Sector',
+    holdings: [],
+    auto_rotate: 'Active daily rotation.'
+  };
+  document.getElementById('modal-tag').innerText = 'GICS SECTOR INTELLIGENCE // ' + etf;
+  document.getElementById('modal-title').innerText = s.name + ' (' + etf + ')';
+
+  let holdingsHtml = '<div class="modal-holdings-grid">';
+  (s.holdings || []).forEach(h => {
+    holdingsHtml += '<div class="holding-item"><span class="holding-sym">$' + h.sym + '</span><span class="holding-name">' + h.name + '</span></div>';
+  });
+  holdingsHtml += '</div>';
+
+  const bodyHtml = `
+    <p><b>Macro Role &amp; Sector Mandate:</b> ${s.role}</p>
+    <div class="modal-section-title">🏛 Today\'s Top Constituent Holdings</div>
+    ${holdingsHtml}
+    <div class="modal-section-title">⚡ Auto-Rotation Protocol &amp; Rebalance Status</div>
+    <div style="background:rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:12px 14px; font-size:12px; line-height:1.5;">
+      <b>Auto-Rotate Status:</b> <span style="color:#00E676; font-weight:700;">ACTIVE</span><br>
+      ${s.auto_rotate}
+    </div>
+  `;
+  document.getElementById('modal-content').innerHTML = bodyHtml;
+  document.getElementById('info-modal').classList.add('active');
+}
+
+function closeModal(e) {
+  if (e.target.id === 'info-modal') closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('info-modal').classList.remove('active');
 }
 
 // Interactive 3D Gold Particle Constellation Canvas
@@ -1452,12 +1792,270 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         if not model_desc:
             model_desc = "Ridge Alpha158 · Multi-Factor ML"
 
+        desk_profiles = {
+            "alpha_gems": {
+                "crest": "💎",
+                "title": "10X Multi-Bagger Gem Radar Desk",
+                "tagline": "Emerging High-Growth Micro-to-Mid Caps ($500M - $25B) · Exponential Asymmetric Alpha",
+                "universe_desc": "High-velocity growth equities ($500M–$25B) filtered for 30%+ YoY revenue expansion, gross margins > 50%, and institutional relative volume (RVOL > 2.0x) breakouts.",
+                "model_strategy": "Multi-Bagger Potential Index (MPI 0–100) combining fundamental growth, catalyst scoring (Insider Buying, Short Squeeze, Product Cycle), and LightGBM Alpha158 momentum factors.",
+                "gating_policy": "Strict Conviction Gate (MPI ≥ 80.0, RVOL ≥ 1.8x). Long signals blocked if broader sector is in macro downtrend. Max 3-5 alerts per session.",
+            },
+            "sp500": {
+                "crest": "🏛",
+                "title": "S&P 500 Broad Market & Macro Sector Desk",
+                "tagline": "Large-Cap US Equities & Dynamic 11 GICS Sector Rotation",
+                "universe_desc": "The 500 leading US publicly traded corporations across all 11 GICS sectors (XLK, XLE, XLF, XLY, XLV, XLC, XLI, XLP, XLU, XLRE, XLB).",
+                "model_strategy": "Alpha158 Factor Engine (158 quantitative indicators: price momentum, volume-price divergence, mean-reversion) evaluated by walk-forward trained ML rankers.",
+                "gating_policy": "Conviction Gate (Score ≥ 0.65) paired with Sector Intelligence. Long signals are strictly suppressed if the stock's GICS sector rating is below 45 (bearish).",
+            },
+            "us_tech": {
+                "crest": "⚡",
+                "title": "Mega-Cap Tech & AI Innovators Desk",
+                "tagline": "Nasdaq-100 Giants, Semiconductor Leadership & Cloud Infrastructure",
+                "universe_desc": "Top technology, semiconductor, and platform powerhouses (AAPL, MSFT, NVDA, GOOGL, META, AMZN, AVGO, TSM, AMD, CRM).",
+                "model_strategy": "High-beta trend continuation and volatility breakout models utilizing Alpha158 multi-factor signals with cross-sectional rank normalization.",
+                "gating_policy": "RSI-14 momentum filters, dynamic trailing stop limits, and strict daily noise budget (maximum 3 alerts/day) to capture major structural trends.",
+            },
+            "demo": {
+                "crest": "🌐",
+                "title": "CSI 300 Cross-Asset Quantitative Desk",
+                "tagline": "Benchmark Multi-Factor Research, Alpha Factor Validation & Backtesting Sandbox",
+                "universe_desc": "300 major index equities across industrial, consumer, and tech sectors used for institutional validation and factor backtesting.",
+                "model_strategy": "LightGBM gradient boosted decision trees trained on rolling Alpha158 features with cross-validation against market indices.",
+                "gating_policy": "Dual-stage conviction filter (Alpha Score ≥ 0.50 + Volatility Gate). Suppresses low-confidence signals to verify signal precision.",
+            },
+            "ridge": {
+                "crest": "📈",
+                "title": "Ridge Alpha158 Baseline Model Desk",
+                "tagline": "L2-Regularized Linear Regression & Alpha Factor Benchmark Sandbox",
+                "universe_desc": "Liquid US equities tracked against baseline mathematical factors for linear regression benchmark audits.",
+                "model_strategy": "L2-penalized Ridge regression model predicting forward normalized return spreads using 158 continuous factors.",
+                "gating_policy": "Basic threshold gating (> 0.50) designed to benchmark linear factor separation against non-linear gradient boosting.",
+            },
+            "e2ev": {
+                "crest": "🛡",
+                "title": "Enterprise Production & Walk-Forward Audit Desk",
+                "tagline": "Walk-Forward Out-of-Sample Verification, Model Lineage Audit & Stress Testing",
+                "universe_desc": "Full multi-asset universe subjected to automated end-to-end walk-forward stress testing and latency benchmarking.",
+                "model_strategy": "Multi-model ensemble (Ridge + LightGBM + Sector Overlay) with automated shadow regret feedback tuning.",
+                "gating_policy": "Zero-tolerance noise gate: enforces strict latency, model lineage provenance verification, and risk-adjusted position sizing.",
+            },
+        }
+
+        desk_meta = desk_profiles.get(ws, {
+            "crest": "⚜",
+            "title": f"{ws.upper()} Quantitative Trading Desk",
+            "tagline": "Autonomous Quantitative Alpha, Multi-Factor Scoring & Conviction Alerts",
+            "universe_desc": f"Active assets configured for {ws} workspace under institutional multi-factor surveillance.",
+            "model_strategy": "Alpha158 Factor Engine with machine learning cross-sectional return rank forecasting.",
+            "gating_policy": "Autonomous Conviction Gating with macro sector filtering and shadow regret outcome tracking.",
+        })
+
+        sector_db = {
+            "XLE": {
+                "name": "Energy Select Sector SPDR",
+                "role": "Oil, Gas, Consumable Fuels & Energy Equipment. Highly sensitive to global crude oil prices, OPEC+ quotas, inflation expectations, and refining crack spreads.",
+                "holdings": [
+                    {"sym": "XOM", "name": "Exxon Mobil Corp"},
+                    {"sym": "CVX", "name": "Chevron Corp"},
+                    {"sym": "COP", "name": "ConocoPhillips"},
+                    {"sym": "EOG", "name": "EOG Resources Inc"},
+                    {"sym": "SLB", "name": "Schlumberger Ltd"},
+                    {"sym": "OXY", "name": "Occidental Petroleum"},
+                    {"sym": "MPC", "name": "Marathon Petroleum"},
+                    {"sym": "PSX", "name": "Phillips 66"},
+                    {"sym": "VLO", "name": "Valero Energy"},
+                    {"sym": "HAL", "name": "Halliburton Co"}
+                ],
+                "auto_rotate": "Scored daily at 16:30 ET against SPY. When Sector Rating ≥ 70, long energy alerts are unlocked and capital rotates in. If Rating drops below 45 or breaks 50-day SMA, buy alerts are suppressed."
+            },
+            "XLK": {
+                "name": "Technology Select Sector SPDR",
+                "role": "Software, Semiconductors, Hardware & Cloud Infrastructure. Growth driver of modern economy; highly sensitive to interest rates, AI capex, and corporate IT budgets.",
+                "holdings": [
+                    {"sym": "AAPL", "name": "Apple Inc"},
+                    {"sym": "MSFT", "name": "Microsoft Corp"},
+                    {"sym": "NVDA", "name": "NVIDIA Corp"},
+                    {"sym": "AVGO", "name": "Broadcom Inc"},
+                    {"sym": "ORCL", "name": "Oracle Corp"},
+                    {"sym": "CRM", "name": "Salesforce Inc"},
+                    {"sym": "AMD", "name": "Advanced Micro Devices"},
+                    {"sym": "ADBE", "name": "Adobe Inc"},
+                    {"sym": "QCOM", "name": "Qualcomm Inc"},
+                    {"sym": "NOW", "name": "ServiceNow Inc"}
+                ],
+                "auto_rotate": "Daily dynamic scoring. When Tech leads (Rating ≥ 70), momentum signals across semiconductors and enterprise software are prioritized. Suppressed during market drawdowns."
+            },
+            "XLF": {
+                "name": "Financial Select Sector SPDR",
+                "role": "Investment Banks, Commercial Banks, Payments, Asset Managers & Insurance. Correlated with yield curve slope, net interest margins (NIM), credit spreads, and M&A volume.",
+                "holdings": [
+                    {"sym": "JPM", "name": "JPMorgan Chase & Co"},
+                    {"sym": "V", "name": "Visa Inc"},
+                    {"sym": "MA", "name": "Mastercard Inc"},
+                    {"sym": "GS", "name": "Goldman Sachs Group"},
+                    {"sym": "BLK", "name": "BlackRock Inc"},
+                    {"sym": "AXP", "name": "American Express"},
+                    {"sym": "MS", "name": "Morgan Stanley"},
+                    {"sym": "SCHW", "name": "Charles Schwab"},
+                    {"sym": "C", "name": "Citigroup Inc"},
+                    {"sym": "BAC", "name": "Bank of America"}
+                ],
+                "auto_rotate": "Monitors 10-year UST yield and banking credit default spreads. Capital auto-allocates to leading banks when rate volatility stabilizes."
+            },
+            "XLY": {
+                "name": "Consumer Discretionary Select Sector SPDR",
+                "role": "E-Commerce, Automotive, Retail, Luxury & Restaurants. Bellwether for consumer confidence, wage growth, disposable income, and discretionary spending.",
+                "holdings": [
+                    {"sym": "AMZN", "name": "Amazon.com Inc"},
+                    {"sym": "TSLA", "name": "Tesla Inc"},
+                    {"sym": "HD", "name": "Home Depot Inc"},
+                    {"sym": "MCD", "name": "McDonald's Corp"},
+                    {"sym": "NKE", "name": "NIKE Inc"},
+                    {"sym": "SBUX", "name": "Starbucks Corp"},
+                    {"sym": "LOW", "name": "Lowe's Companies"},
+                    {"sym": "BKNG", "name": "Booking Holdings"},
+                    {"sym": "TJX", "name": "TJX Companies"},
+                    {"sym": "CMG", "name": "Chipotle Mexican Grill"}
+                ],
+                "auto_rotate": "Cyclical consumer gauge. When discretionary spending contracts (Rating < 45), buy signals are suppressed and capital shifts to defensive staples."
+            },
+            "XLV": {
+                "name": "Health Care Select Sector SPDR",
+                "role": "Pharmaceuticals, Biotechnology, Medical Devices & Health Insurance. Defensive non-cyclical growth driven by demographic aging, clinical drug trials, and FDA approvals.",
+                "holdings": [
+                    {"sym": "LLY", "name": "Eli Lilly and Co"},
+                    {"sym": "UNH", "name": "UnitedHealth Group"},
+                    {"sym": "JNJ", "name": "Johnson & Johnson"},
+                    {"sym": "ABBV", "name": "AbbVie Inc"},
+                    {"sym": "MRK", "name": "Merck & Co"},
+                    {"sym": "TMO", "name": "Thermo Fisher Scientific"},
+                    {"sym": "ABT", "name": "Abbott Laboratories"},
+                    {"sym": "PFE", "name": "Pfizer Inc"},
+                    {"sym": "AMGN", "name": "Amgen Inc"},
+                    {"sym": "ISRG", "name": "Intuitive Surgical"}
+                ],
+                "auto_rotate": "Defensive safe haven. Auto-rotates into healthcare when broader market breadth deteriorates or market enters risk-off volatility regimes."
+            },
+            "XLC": {
+                "name": "Communication Services Select Sector SPDR",
+                "role": "Digital Advertising, Social Media, Streaming Entertainment & Telecom. Correlated with enterprise ad spend, subscriber retention, and cloud data consumption.",
+                "holdings": [
+                    {"sym": "META", "name": "Meta Platforms Inc"},
+                    {"sym": "GOOGL", "name": "Alphabet Inc"},
+                    {"sym": "NFLX", "name": "Netflix Inc"},
+                    {"sym": "DIS", "name": "Walt Disney Co"},
+                    {"sym": "CMCSA", "name": "Comcast Corp"},
+                    {"sym": "VZ", "name": "Verizon Communications"},
+                    {"sym": "T", "name": "AT&T Inc"},
+                    {"sym": "CHTR", "name": "Charter Communications"},
+                    {"sym": "EA", "name": "Electronic Arts"},
+                    {"sym": "TTWO", "name": "Take-Two Interactive"}
+                ],
+                "auto_rotate": "Evaluated against digital advertising cycles. High relative momentum signals trigger buy alerts; suppresses telecom legacy names during high-yield drawdowns."
+            },
+            "XLI": {
+                "name": "Industrial Select Sector SPDR",
+                "role": "Aerospace & Defense, Heavy Machinery, Freight Logistics & Electrical Equipment. Leading indicator for manufacturing PMI, infrastructure spending, and industrial cap-ex.",
+                "holdings": [
+                    {"sym": "CAT", "name": "Caterpillar Inc"},
+                    {"sym": "GE", "name": "GE Aerospace"},
+                    {"sym": "BA", "name": "Boeing Co"},
+                    {"sym": "HON", "name": "Honeywell International"},
+                    {"sym": "RTX", "name": "RTX Corp"},
+                    {"sym": "UPS", "name": "United Parcel Service"},
+                    {"sym": "LMT", "name": "Lockheed Martin"},
+                    {"sym": "DE", "name": "Deere & Co"},
+                    {"sym": "MMM", "name": "3M Co"},
+                    {"sym": "ETN", "name": "Eaton Corp"}
+                ],
+                "auto_rotate": "Closely tracks ISM Manufacturing indexes. Capital rotates in during early-to-mid economic expansions; rotates out during recessionary warnings."
+            },
+            "XLP": {
+                "name": "Consumer Staples Select Sector SPDR",
+                "role": "Supermarkets, Food & Beverage, Household Products & Tobacco. Inelastic essential consumer goods providing reliable dividend yields and capital preservation.",
+                "holdings": [
+                    {"sym": "WMT", "name": "Walmart Inc"},
+                    {"sym": "PG", "name": "Procter & Gamble"},
+                    {"sym": "COST", "name": "Costco Wholesale"},
+                    {"sym": "KO", "name": "Coca-Cola Co"},
+                    {"sym": "PEP", "name": "PepsiCo Inc"},
+                    {"sym": "CL", "name": "Colgate-Palmolive"},
+                    {"sym": "MDLZ", "name": "Mondelez International"},
+                    {"sym": "KMB", "name": "Kimberly-Clark"},
+                    {"sym": "SYY", "name": "Sysco Corp"},
+                    {"sym": "GIS", "name": "General Mills"}
+                ],
+                "auto_rotate": "Classic defensive counter-cyclical sector. Algorithm automatically shifts allocation here when high-growth tech or consumer discretionary ratings break down."
+            },
+            "XLU": {
+                "name": "Utilities Select Sector SPDR",
+                "role": "Electric Utilities, Gas Distribution, Clean Energy & Nuclear Power Providers. Bond proxy sector offering stable regulated cash flows and AI data center power demand.",
+                "holdings": [
+                    {"sym": "NEE", "name": "NextEra Energy"},
+                    {"sym": "DUK", "name": "Duke Energy Corp"},
+                    {"sym": "SO", "name": "Southern Co"},
+                    {"sym": "AEP", "name": "American Electric Power"},
+                    {"sym": "SRE", "name": "Sempra"},
+                    {"sym": "D", "name": "Dominion Energy"},
+                    {"sym": "EXC", "name": "Exelon Corp"},
+                    {"sym": "PEG", "name": "Public Service Enterprise"},
+                    {"sym": "ED", "name": "Consolidated Edison"},
+                    {"sym": "AWK", "name": "American Water Works"}
+                ],
+                "auto_rotate": "Monitors Treasury yield curves and electrification energy demand. Auto-rotates into nuclear/clean power suppliers as long-duration AI infrastructure plays."
+            },
+            "XLRE": {
+                "name": "Real Estate Select Sector SPDR",
+                "role": "REITs across Industrial Warehouses, Telecom Towers, Data Centers, Logistics & Residential. Sensitive to mortgage interest rates, commercial occupancy, and cap rates.",
+                "holdings": [
+                    {"sym": "PLD", "name": "Prologis Inc"},
+                    {"sym": "AMT", "name": "American Tower Corp"},
+                    {"sym": "EQIX", "name": "Equinix Inc"},
+                    {"sym": "CCI", "name": "Crown Castle Inc"},
+                    {"sym": "SPG", "name": "Simon Property Group"},
+                    {"sym": "PSA", "name": "Public Storage"},
+                    {"sym": "WELL", "name": "Welltower Inc"},
+                    {"sym": "O", "name": "Realty Income Corp"},
+                    {"sym": "DLR", "name": "Digital Realty Trust"},
+                    {"sym": "AVB", "name": "AvalonBay Communities"}
+                ],
+                "auto_rotate": "Correlated with real interest rates and credit conditions. Auto-triggers defensive hedges if commercial real estate vacancy pressures escalate."
+            },
+            "XLB": {
+                "name": "Materials Select Sector SPDR",
+                "role": "Chemicals, Industrial Metals, Gold & Copper Miners, Agricultural Fertilizers & Packaging. Correlated with commodity super-cycles and global industrial production.",
+                "holdings": [
+                    {"sym": "LIN", "name": "Linde plc"},
+                    {"sym": "SHW", "name": "Sherwin-Williams Co"},
+                    {"sym": "FCX", "name": "Freeport-McMoRan"},
+                    {"sym": "APD", "name": "Air Products & Chemicals"},
+                    {"sym": "NEM", "name": "Newmont Corp"},
+                    {"sym": "ECL", "name": "Ecolab Inc"},
+                    {"sym": "DOW", "name": "Dow Inc"},
+                    {"sym": "DD", "name": "DuPont de Nemours"},
+                    {"sym": "PPG", "name": "PPG Industries"},
+                    {"sym": "CTVA", "name": "Corteva Inc"}
+                ],
+                "auto_rotate": "Tracks global copper, gold, and agricultural commodities. When raw materials surge, alerts in copper and mining leaders are triggered."
+            }
+        }
+        sectors_json = json.dumps(sector_db)
+
         return tpl.render(
             css=_LUXURY_CSS,
             name=ws,
             asof=asof or "2026-09-13",
             model_id=model_id,
             model_desc=model_desc,
+            desk_crest=desk_meta["crest"],
+            desk_title=desk_meta["title"],
+            desk_tagline=desk_meta["tagline"],
+            desk_universe_desc=desk_meta["universe_desc"],
+            desk_model_strategy=desk_meta["model_strategy"],
+            desk_gating_policy=desk_meta["gating_policy"],
+            sectors_json=sectors_json,
             n_pred=n_pred or 300,
             n_delivered=n_delivered,
             n_events=n_events,

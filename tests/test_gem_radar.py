@@ -94,3 +94,4 @@ def test_alpha_gems_workspace_config():
     assert "PLTR" in wc.instruments
     assert len(wc.instruments) >= 15
     assert wc.alerts.min_conviction == 68.0
+
