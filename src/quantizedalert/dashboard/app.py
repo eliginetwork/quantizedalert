@@ -874,6 +874,141 @@ footer {
   align-items: center;
   gap: 10px;
 }
+
+/* Clerk UserButton & Popover Dark Luxury Theme */
+.cl-userButtonPopoverRootBox,
+.cl-userButtonPopoverCard,
+.cl-card {
+  background: #0B0F17 !important;
+  background-color: #0B0F17 !important;
+  border: 1px solid rgba(212, 175, 55, 0.35) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 25px rgba(212, 175, 55, 0.15) !important;
+  border-radius: 12px !important;
+  color: #FFFFFF !important;
+}
+
+.cl-userButtonPopoverMain {
+  background: transparent !important;
+}
+
+.cl-userPreviewPrimaryIdentifier {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  font-family: var(--font-sans) !important;
+  font-size: 14px !important;
+}
+
+.cl-userPreviewSecondaryIdentifier {
+  color: var(--gold-light) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 12px !important;
+}
+
+.cl-userButtonPopoverActionButton,
+button.cl-userButtonPopoverActionButton,
+.cl-userButtonPopoverCustomItemButton {
+  color: #F5F7FA !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 10px 14px !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+  border: 1px solid transparent !important;
+}
+
+.cl-userButtonPopoverActionButton *,
+button.cl-userButtonPopoverActionButton *,
+.cl-userButtonPopoverCustomItemButton * {
+  color: #F5F7FA !important;
+}
+
+.cl-userButtonPopoverActionButton:hover,
+button.cl-userButtonPopoverActionButton:hover,
+.cl-userButtonPopoverCustomItemButton:hover {
+  background: rgba(212, 175, 55, 0.15) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+}
+
+.cl-userButtonPopoverActionButton:hover *,
+button.cl-userButtonPopoverActionButton:hover * {
+  color: #FFFFFF !important;
+}
+
+.cl-userButtonPopoverActionButtonText {
+  color: #F5F7FA !important;
+  font-weight: 600 !important;
+}
+
+.cl-userButtonPopoverActionButtonIcon,
+.cl-userButtonPopoverActionButtonIconBox,
+button.cl-userButtonPopoverActionButton svg {
+  color: var(--gold-primary) !important;
+  fill: var(--gold-primary) !important;
+}
+
+.cl-userButtonPopoverActionButton:hover svg,
+.cl-userButtonPopoverActionButton:hover .cl-userButtonPopoverActionButtonIcon {
+  color: #FFFFFF !important;
+  fill: #FFFFFF !important;
+}
+
+.cl-userButtonPopoverFooter {
+  background: rgba(16, 22, 34, 0.7) !important;
+  border-top: 1px solid rgba(212, 175, 55, 0.15) !important;
+}
+
+.cl-userButtonPopoverFooter a,
+.cl-userButtonPopoverFooter span,
+.cl-userButtonPopoverFooter p {
+  color: var(--text-silver) !important;
+}
+
+/* Clerk UserProfile Modal Dark Luxury Styling */
+.cl-modalBackdrop {
+  background: rgba(5, 8, 14, 0.82) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.cl-modalContent,
+.cl-userProfile-root {
+  background: #0B0F17 !important;
+  background-color: #0B0F17 !important;
+  border: 1px solid rgba(212, 175, 55, 0.3) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(212, 175, 55, 0.15) !important;
+  color: #FFFFFF !important;
+}
+
+.cl-navbar {
+  background: rgba(16, 22, 34, 0.85) !important;
+  border-right: 1px solid rgba(212, 175, 55, 0.15) !important;
+}
+
+.cl-navbarButton {
+  color: #D8E0EA !important;
+}
+
+.cl-navbarButton:hover,
+.cl-navbarButton[data-active="true"] {
+  background: rgba(212, 175, 55, 0.15) !important;
+  color: var(--gold-light) !important;
+}
+
+.cl-headerTitle,
+.cl-headerSubtitle,
+.cl-profileSectionTitle,
+.cl-formFieldLabel,
+.cl-breadcrumbsItem,
+.cl-profileSectionContent {
+  color: #FFFFFF !important;
+}
+
+.cl-profileSectionTitleText {
+  color: var(--gold-primary) !important;
+  font-family: var(--font-serif) !important;
+}
 """
 
 _WORKSPACE_TEMPLATE = """<!doctype html>
@@ -1562,9 +1697,33 @@ function ensureClerkReady() {
           variables: {
             colorPrimary: '#D4AF37',
             colorBackground: '#0B0F17',
-            colorText: '#F5F7FA',
+            colorText: '#FFFFFF',
+            colorTextSecondary: '#A0AEC0',
             colorInputBackground: '#101624',
-            colorInputText: '#FFF',
+            colorInputText: '#FFFFFF',
+            colorNeutral: '#FFFFFF',
+          },
+          elements: {
+            userButtonPopoverCard: {
+              backgroundColor: '#0B0F17',
+              border: '1px solid rgba(212, 175, 55, 0.35)',
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButton: {
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButtonText: {
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButtonIcon: {
+              color: '#D4AF37'
+            },
+            userPreviewPrimaryIdentifier: {
+              color: '#FFFFFF'
+            },
+            userPreviewSecondaryIdentifier: {
+              color: '#D4AF37'
+            }
           }
         }
       });
@@ -1832,9 +1991,33 @@ function ensurePortalClerkReady() {
           variables: {
             colorPrimary: '#D4AF37',
             colorBackground: '#0B0F17',
-            colorText: '#F5F7FA',
+            colorText: '#FFFFFF',
+            colorTextSecondary: '#A0AEC0',
             colorInputBackground: '#101624',
-            colorInputText: '#FFF',
+            colorInputText: '#FFFFFF',
+            colorNeutral: '#FFFFFF',
+          },
+          elements: {
+            userButtonPopoverCard: {
+              backgroundColor: '#0B0F17',
+              border: '1px solid rgba(212, 175, 55, 0.35)',
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButton: {
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButtonText: {
+              color: '#FFFFFF'
+            },
+            userButtonPopoverActionButtonIcon: {
+              color: '#D4AF37'
+            },
+            userPreviewPrimaryIdentifier: {
+              color: '#FFFFFF'
+            },
+            userPreviewSecondaryIdentifier: {
+              color: '#D4AF37'
+            }
           }
         }
       });
