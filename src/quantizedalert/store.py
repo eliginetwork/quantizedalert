@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -58,6 +59,21 @@ CREATE TABLE IF NOT EXISTS customers (
   stripe_customer_id TEXT, stripe_subscription_id TEXT, status TEXT,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS users (
+  user_id TEXT PRIMARY KEY,
+  clerk_id TEXT UNIQUE,
+  email TEXT UNIQUE,
+  telegram_chat_id TEXT UNIQUE,
+  telegram_username TEXT,
+  auth_provider TEXT DEFAULT 'clerk',
+  plan TEXT DEFAULT 'free',
+  status TEXT DEFAULT 'active',
+  created_at TEXT,
+  last_login_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_users_clerk_id ON users(clerk_id);
+CREATE INDEX IF NOT EXISTS ix_users_telegram_chat_id ON users(telegram_chat_id);
+CREATE INDEX IF NOT EXISTS ix_users_email ON users(email);
 CREATE TABLE IF NOT EXISTS data_health (
   id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT, asof TEXT,
   status TEXT, detail TEXT, created_at TEXT
@@ -329,6 +345,56 @@ class Store:
     def list_customers(self) -> list[dict]:
         with self._conn() as c:
             return [dict(r) for r in c.execute("SELECT * FROM customers")]
+
+    # ---------- users & telegram auth ----------
+    def sync_user(self, clerk_id: str, email: str, name: str | None = None) -> dict:
+        """Upsert a user from Clerk authentication."""
+        now = utcnow()
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM users WHERE clerk_id=?", (clerk_id,)).fetchone()
+            if r:
+                c.execute(
+                    "UPDATE users SET email=?, last_login_at=? WHERE clerk_id=?",
+                    (email, now, clerk_id)
+                )
+                user_row = c.execute("SELECT * FROM users WHERE clerk_id=?", (clerk_id,)).fetchone()
+                return dict(user_row)
+            else:
+                user_id = f"usr_{uuid.uuid4().hex[:12]}"
+                c.execute(
+                    "INSERT INTO users (user_id, clerk_id, email, auth_provider, plan, status, created_at, last_login_at) "
+                    "VALUES (?, ?, ?, 'clerk', 'free', 'active', ?, ?)",
+                    (user_id, clerk_id, email, now, now)
+                )
+                user_row = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+                return dict(user_row)
+
+    def update_user_telegram(self, clerk_id: str, telegram_chat_id: str,
+                             telegram_username: str | None = None) -> dict | None:
+        """Link or update Telegram credentials for a user."""
+        clean_chat_id = str(telegram_chat_id).strip()
+        clean_username = (telegram_username or "").strip().lstrip("@")
+        with self._conn() as c:
+            c.execute(
+                "UPDATE users SET telegram_chat_id=?, telegram_username=? WHERE clerk_id=?",
+                (clean_chat_id, clean_username, clerk_id)
+            )
+            r = c.execute("SELECT * FROM users WHERE clerk_id=?", (clerk_id,)).fetchone()
+        return dict(r) if r else None
+
+    def get_user_by_clerk_id(self, clerk_id: str) -> dict | None:
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM users WHERE clerk_id=?", (clerk_id,)).fetchone()
+        return dict(r) if r else None
+
+    def get_user_by_telegram(self, telegram_chat_id: str) -> dict | None:
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM users WHERE telegram_chat_id=?", (str(telegram_chat_id).strip(),)).fetchone()
+        return dict(r) if r else None
+
+    def list_users(self) -> list[dict]:
+        with self._conn() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM users ORDER BY created_at DESC")]
 
     # ---------- data health / drift ----------
     def put_data_health(self, workspace_id: str, asof: str, status: str,

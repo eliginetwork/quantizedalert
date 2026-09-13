@@ -9,6 +9,7 @@ import os
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from quantizedalert.config import PlatformConfig, WorkspaceConfig
 from quantizedalert.store import Store
@@ -23,6 +24,18 @@ def _require_token(authorization: str | None = Header(default=None),
     provided = x_api_key or (authorization.removeprefix("Bearer ").strip() if authorization else "")
     if provided != expected:
         raise HTTPException(status_code=401, detail="invalid or missing API token")
+
+
+class AuthSyncRequest(BaseModel):
+    clerk_id: str
+    email: str
+    name: str | None = None
+
+
+class TelegramLinkRequest(BaseModel):
+    clerk_id: str
+    telegram_chat_id: str
+    telegram_username: str | None = None
 
 
 _LUXURY_CSS = """
@@ -836,6 +849,31 @@ footer {
   color: var(--gold-warm);
   text-decoration: none;
 }
+
+/* Telegram & Gating */
+.telegram-banner {
+  margin: 18px 32px 0 32px;
+  background: linear-gradient(90deg, rgba(212,175,55,0.12) 0%, rgba(16,22,34,0.88) 100%);
+  border: 1px solid var(--border-gold);
+  border-radius: 10px;
+  padding: 14px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  transition: all 0.3s ease;
+}
+.gated-row.blurred {
+  filter: blur(4px);
+  opacity: 0.45;
+  user-select: none;
+  pointer-events: none;
+}
+.clerk-auth-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 """
 
 _WORKSPACE_TEMPLATE = """<!doctype html>
@@ -847,6 +885,13 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>{{ css }}</style>
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="{{ clerk_publishable_key }}"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    type="text/javascript">
+  </script>
 </head>
 <body>
 <canvas id="bg-canvas"></canvas>
@@ -890,8 +935,30 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
       <span class="gold-badge"><span class="status-dot"></span> {{ status_text }}</span>
       <span class="gold-badge">AS-OF: {{ asof }}</span>
       <a href="/" class="gold-badge" style="text-decoration:none; cursor:pointer;">❖ SWITCH DESK</a>
+      <div id="clerk-auth-container" style="display:flex; align-items:center; gap:8px;">
+        <div id="clerk-user-button"></div>
+        <button id="clerk-login-btn" class="gold-badge" style="cursor:pointer; background:rgba(212,175,55,0.18); border:1px solid var(--gold-primary); color:var(--gold-light);" onclick="openClerkModal('signin')">
+          🔐 SIGN IN / JOIN
+        </button>
+      </div>
     </div>
   </header>
+
+  <!-- Telegram Alert Connection Banner -->
+  <div id="telegram-link-banner" class="telegram-banner" style="display:none;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span style="font-size:24px;">✈️</span>
+      <div>
+        <div style="font-family:var(--font-serif); font-size:14px; font-weight:700; color:var(--gold-light); letter-spacing:0.04em;">CONNECT YOUR TELEGRAM TO RECEIVE ALPHA ALERTS</div>
+        <div style="font-size:12px; color:var(--text-silver);">Real-time 10X gem breakouts and high-conviction trade setups will be delivered directly to your Telegram.</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button class="gold-badge" style="cursor:pointer; background:var(--gold-primary); color:#000; font-weight:700; border:none; padding:8px 16px;" onclick="openTelegramModal()">
+        LINK TELEGRAM NOW &rarr;
+      </button>
+    </div>
+  </div>
 
   <!-- Desk Mandate & Strategy Profile Space -->
   <div class="mandate-banner">
@@ -989,7 +1056,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
         </thead>
         <tbody>
           {% for g in gem_candidates %}
-          <tr>
+          <tr class="{{ 'gated-row blurred' if loop.index > 2 else '' }}">
             <td>
               <div style="font-weight:700; color:#FFF; font-family:var(--font-mono); font-size:14px;">
                 {{ g.ticker }} <span class="gem-badge">10X GEM</span>
@@ -1018,6 +1085,16 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
             </td>
           </tr>
           {% endfor %}
+          <tr id="gem-gate-banner" style="display:none;">
+            <td colspan="8" style="padding:28px 20px; text-align:center; background:linear-gradient(180deg, rgba(16,22,34,0.6) 0%, rgba(212,175,55,0.08) 100%); border-top:1px dashed var(--border-gold);">
+              <div style="font-size:24px; margin-bottom:8px;">🔒</div>
+              <div style="font-family:var(--font-serif); font-size:16px; font-weight:700; color:var(--gold-light); margin-bottom:4px;">10 ADDITIONAL 10X GEM BREAKOUTS LOCKED</div>
+              <div style="font-size:12px; color:var(--text-silver); margin-bottom:16px;">Sign in with Google, Apple, or Email to view full asymmetric trade setups, entry zones, and calculated price targets.</div>
+              <button class="gold-badge" style="cursor:pointer; background:var(--gold-primary); color:#000; font-weight:700; padding:10px 24px; font-size:13px; border:none;" onclick="openClerkModal('signup')">
+                UNLOCK ALL GEMS FREE &rarr;
+              </button>
+            </td>
+          </tr>
         </tbody>
       </table>
       {% else %}
@@ -1235,6 +1312,38 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
   </div>
 </div>
 
+<!-- Telegram Connection Modal -->
+<div id="telegram-modal" class="modal-backdrop" onclick="closeTelegramModal(event)">
+  <div class="modal-dialog" onclick="event.stopPropagation()" style="max-width:480px;">
+    <button class="modal-close" onclick="closeTelegramModalDirect()">&times;</button>
+    <div class="modal-tag">✈️ REAL-TIME ALERT DELIVERY</div>
+    <div class="modal-title">Link Your Telegram</div>
+    <div class="modal-body">
+      <p style="font-size:13px; color:var(--text-silver); margin-bottom:16px;">
+        Connect your Telegram account to receive instant push alerts whenever a 10X Gem or high-conviction breakout signal is validated.
+      </p>
+
+      <div style="background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:14px; margin-bottom:16px; font-size:12px; line-height:1.6;">
+        <div style="font-weight:700; color:var(--gold-warm); margin-bottom:6px;">📲 HOW TO CONNECT:</div>
+        <div>1. Open Telegram and message our bot: <b>@QuantizedAlertBot</b></div>
+        <div>2. Click <b>START</b> or input your username/Chat ID below.</div>
+      </div>
+
+      <form id="telegram-form" onsubmit="submitTelegram(event)">
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:11px; font-family:var(--font-mono); color:var(--gold-light); margin-bottom:6px;">TELEGRAM @USERNAME OR CHAT ID</label>
+          <input type="text" id="telegram-input" placeholder="@your_username or 123456789" required
+                 style="width:100%; background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:10px 14px; border-radius:6px; font-family:var(--font-mono); font-size:13px; outline:none;">
+        </div>
+        <button type="submit" id="telegram-submit-btn" class="gold-badge" style="width:100%; padding:10px; cursor:pointer; background:var(--gold-primary); color:#000; font-weight:700; border:none; border-radius:6px; font-size:13px;">
+          ACTIVATE TELEGRAM ALERTS &rarr;
+        </button>
+      </form>
+      <div id="telegram-status-msg" style="margin-top:12px; font-size:12px; text-align:center; display:none;"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // Interactive Tab Switching
 function switchTab(tabId) {
@@ -1430,6 +1539,169 @@ function animate() {
   }
   requestAnimationFrame(animate);
 }
+
+// Clerk Authentication & Telegram Linkage Controller
+let currentUser = null;
+
+async function initClerk() {
+  if (!window.Clerk) return;
+  try {
+    await window.Clerk.load({
+      appearance: {
+        variables: {
+          colorPrimary: '#D4AF37',
+          colorBackground: '#0B0F17',
+          colorText: '#F5F7FA',
+          colorInputBackground: '#101624',
+          colorInputText: '#FFF',
+        }
+      }
+    });
+
+    if (window.Clerk.user) {
+      const email = window.Clerk.user.primaryEmailAddress ? window.Clerk.user.primaryEmailAddress.emailAddress : '';
+      const clerkId = window.Clerk.user.id;
+      const name = window.Clerk.user.fullName || '';
+
+      const ub = document.getElementById('clerk-user-button');
+      if (ub) window.Clerk.mountUserButton(ub);
+      const loginBtn = document.getElementById('clerk-login-btn');
+      if (loginBtn) loginBtn.style.display = 'none';
+
+      // Sync user to backend SQLite
+      try {
+        const res = await fetch('/api/auth/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clerk_id: clerkId, email: email, name: name })
+        });
+        const data = await res.json();
+        if (data.ok && data.user) {
+          currentUser = data.user;
+          updateTelegramUI(currentUser);
+        }
+      } catch (e) {
+        console.error('Auth sync error:', e);
+      }
+
+      // Unlock gated rows
+      document.querySelectorAll('.gated-row').forEach(el => el.classList.remove('blurred'));
+      const gateBanner = document.getElementById('gem-gate-banner');
+      if (gateBanner) gateBanner.style.display = 'none';
+
+    } else {
+      const loginBtn = document.getElementById('clerk-login-btn');
+      if (loginBtn) loginBtn.style.display = 'block';
+
+      document.querySelectorAll('.gated-row').forEach(el => el.classList.add('blurred'));
+      const gateBanner = document.getElementById('gem-gate-banner');
+      if (gateBanner) gateBanner.style.display = 'table-row';
+    }
+  } catch (err) {
+    console.error('Clerk init error:', err);
+  }
+}
+
+function updateTelegramUI(user) {
+  const banner = document.getElementById('telegram-link-banner');
+  if (!banner) return;
+  if (user && user.telegram_chat_id) {
+    banner.style.display = 'flex';
+    banner.style.borderColor = 'rgba(0, 230, 118, 0.4)';
+    banner.style.background = 'rgba(0, 230, 118, 0.06)';
+    banner.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="color:#00E676; font-size:22px;">✓</span>
+        <div>
+          <div style="font-weight:700; color:#00E676; font-size:13px; font-family:var(--font-serif); letter-spacing:0.04em;">TELEGRAM CONNECTED: ${user.telegram_username ? '@' + user.telegram_username : user.telegram_chat_id}</div>
+          <div style="font-size:11px; color:var(--text-silver);">Live alpha alerts and 10X gem breakouts are active for your Telegram account.</div>
+        </div>
+      </div>
+      <button class="gold-badge" style="cursor:pointer; background:rgba(212,175,55,0.15); border:1px solid var(--gold-primary);" onclick="openTelegramModal()">
+        UPDATE TELEGRAM
+      </button>
+    `;
+  } else {
+    banner.style.display = 'flex';
+  }
+}
+
+function openClerkModal(mode) {
+  if (!window.Clerk) return;
+  if (mode === 'signup') {
+    window.Clerk.openSignUp();
+  } else {
+    window.Clerk.openSignIn();
+  }
+}
+
+function openTelegramModal() {
+  const m = document.getElementById('telegram-modal');
+  if (m) m.classList.add('active');
+  if (currentUser && currentUser.telegram_chat_id) {
+    const inp = document.getElementById('telegram-input');
+    if (inp) inp.value = currentUser.telegram_username ? '@' + currentUser.telegram_username : currentUser.telegram_chat_id;
+  }
+}
+function closeTelegramModal(e) {
+  if (e.target.id === 'telegram-modal') closeTelegramModalDirect();
+}
+function closeTelegramModalDirect() {
+  const m = document.getElementById('telegram-modal');
+  if (m) m.classList.remove('active');
+}
+
+async function submitTelegram(e) {
+  e.preventDefault();
+  const input = document.getElementById('telegram-input').value.trim();
+  const msgEl = document.getElementById('telegram-status-msg');
+  const btn = document.getElementById('telegram-submit-btn');
+
+  if (!currentUser || !currentUser.clerk_id) {
+    alert('Please sign in first before connecting Telegram.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = 'SAVING...';
+
+  try {
+    const res = await fetch('/api/auth/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clerk_id: currentUser.clerk_id,
+        telegram_chat_id: input.replace('@', ''),
+        telegram_username: input.startsWith('@') ? input.slice(1) : input
+      })
+    });
+    const data = await res.json();
+    if (data.ok && data.user) {
+      currentUser = data.user;
+      updateTelegramUI(currentUser);
+      msgEl.style.display = 'block';
+      msgEl.style.color = '#00E676';
+      msgEl.innerHTML = '✓ Telegram connected! Alpha alerts will be delivered here.';
+      setTimeout(() => {
+        closeTelegramModalDirect();
+        msgEl.style.display = 'none';
+        btn.disabled = false;
+        btn.innerText = 'ACTIVATE TELEGRAM ALERTS →';
+      }, 1500);
+    } else {
+      throw new Error(data.error || 'Failed to save Telegram handle');
+    }
+  } catch (err) {
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#FF3366';
+    msgEl.innerText = 'Error: ' + err.message;
+    btn.disabled = false;
+    btn.innerText = 'ACTIVATE TELEGRAM ALERTS →';
+  }
+}
+
+window.addEventListener('load', initClerk);
+
 animate();
 </script>
 </body>
@@ -1445,6 +1717,13 @@ _PORTAL_TEMPLATE = """<!doctype html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>{{ css }}</style>
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="{{ clerk_publishable_key }}"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    type="text/javascript">
+  </script>
 </head>
 <body>
 <canvas id="bg-canvas"></canvas>
@@ -1462,6 +1741,15 @@ _PORTAL_TEMPLATE = """<!doctype html>
       <div class="ticker-item"><span class="ticker-sym">GOLD</span><span class="ticker-val">$2,586.40</span><span class="ticker-up">▲ +0.94%</span></div>
       <div class="ticker-item"><span class="ticker-sym">BTC/USD</span><span class="ticker-val">$68,850</span><span class="ticker-up">▲ +3.20%</span></div>
       <div class="ticker-item"><span class="ticker-sym">10Y UST</span><span class="ticker-val">3.62%</span><span class="ticker-down">▼ -0.05%</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; align-items:center; padding:14px 36px 0 36px;">
+    <div id="clerk-auth-container" style="display:flex; align-items:center; gap:10px;">
+      <div id="clerk-user-button"></div>
+      <button id="clerk-login-btn" class="gold-badge" style="cursor:pointer; background:rgba(212,175,55,0.18); border:1px solid var(--gold-primary); color:var(--gold-light);" onclick="openClerkModal('signin')">
+        🔐 SIGN IN / JOIN
+      </button>
     </div>
   </div>
 
@@ -1495,6 +1783,53 @@ _PORTAL_TEMPLATE = """<!doctype html>
 </div>
 
 <script>
+async function initPortalClerk() {
+  if (!window.Clerk) return;
+  try {
+    await window.Clerk.load({
+      appearance: {
+        variables: {
+          colorPrimary: '#D4AF37',
+          colorBackground: '#0B0F17',
+          colorText: '#F5F7FA',
+          colorInputBackground: '#101624',
+          colorInputText: '#FFF',
+        }
+      }
+    });
+    if (window.Clerk.user) {
+      const ub = document.getElementById('clerk-user-button');
+      if (ub) window.Clerk.mountUserButton(ub);
+      const loginBtn = document.getElementById('clerk-login-btn');
+      if (loginBtn) loginBtn.style.display = 'none';
+      try {
+        const email = window.Clerk.user.primaryEmailAddress ? window.Clerk.user.primaryEmailAddress.emailAddress : '';
+        await fetch('/api/auth/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clerk_id: window.Clerk.user.id, email: email, name: window.Clerk.user.fullName || '' })
+        });
+      } catch (e) {}
+    } else {
+      const loginBtn = document.getElementById('clerk-login-btn');
+      if (loginBtn) loginBtn.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('Clerk portal error:', err);
+  }
+}
+
+function openClerkModal(mode) {
+  if (!window.Clerk) return;
+  if (mode === 'signup') {
+    window.Clerk.openSignUp();
+  } else {
+    window.Clerk.openSignIn();
+  }
+}
+
+window.addEventListener('load', initPortalClerk);
+
 const canvas = document.getElementById('bg-canvas');
 const ctx = canvas.getContext('2d');
 let w, h, particles = [];
@@ -1566,6 +1901,10 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
     tpl = Template(_WORKSPACE_TEMPLATE)
     portal_tpl = Template(_PORTAL_TEMPLATE)
     store = store or Store(platform_cfg.db_path)
+    clerk_publishable_key = os.environ.get(
+        "CLERK_PUBLISHABLE_KEY",
+        "pk_test_c21hcnQtaW5zZWN0LTY5OTIuY2xlcmsuYWNjb3VudHMuZGV2JA"
+    )
 
     def workspace_ids() -> list[str]:
         p = platform_cfg.workspace_dir
@@ -2079,6 +2418,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             status_text=f"PLAN: {plan.upper()} &bull; STATUS: ACTIVE",
             is_gem_desk=is_gem_desk,
             gem_candidates=gem_candidates,
+            clerk_publishable_key=clerk_publishable_key,
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -2106,11 +2446,64 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
                 {"id": "us_tech", "name": "US_TECH DESK", "desc": descriptions["us_tech"]},
                 {"id": "demo", "name": "DEMO DESK", "desc": descriptions["demo"]}
             ]
-        return portal_tpl.render(css=_LUXURY_CSS, workspaces=workspaces_meta)
+        return portal_tpl.render(
+            css=_LUXURY_CSS,
+            workspaces=workspaces_meta,
+            clerk_publishable_key=clerk_publishable_key
+        )
 
     @app.get("/w/{ws}", response_class=HTMLResponse)
     def workspace_page(ws: str):
         return render(ws)
+
+    @app.post("/api/auth/sync")
+    def auth_sync(req: AuthSyncRequest):
+        if not req.clerk_id or not req.email:
+            raise HTTPException(400, "clerk_id and email required")
+        user = store.sync_user(req.clerk_id, req.email, req.name)
+        return {
+            "ok": True,
+            "user": {
+                "user_id": user["user_id"],
+                "clerk_id": user["clerk_id"],
+                "email": user["email"],
+                "telegram_chat_id": user.get("telegram_chat_id"),
+                "telegram_username": user.get("telegram_username"),
+                "plan": user.get("plan", "free"),
+                "is_telegram_linked": bool(user.get("telegram_chat_id")),
+            }
+        }
+
+    @app.post("/api/auth/telegram")
+    def auth_telegram(req: TelegramLinkRequest):
+        if not req.clerk_id or not req.telegram_chat_id:
+            raise HTTPException(400, "clerk_id and telegram_chat_id required")
+        user = store.update_user_telegram(req.clerk_id, req.telegram_chat_id, req.telegram_username)
+        if not user:
+            raise HTTPException(404, "user not found")
+        return {
+            "ok": True,
+            "user": {
+                "user_id": user["user_id"],
+                "clerk_id": user["clerk_id"],
+                "email": user["email"],
+                "telegram_chat_id": user.get("telegram_chat_id"),
+                "telegram_username": user.get("telegram_username"),
+                "plan": user.get("plan", "free"),
+                "is_telegram_linked": bool(user.get("telegram_chat_id")),
+            }
+        }
+
+    @app.get("/api/auth/user")
+    def auth_user(clerk_id: str):
+        user = store.get_user_by_clerk_id(clerk_id)
+        if not user:
+            raise HTTPException(404, "user not found")
+        return {
+            "ok": True,
+            "user": user,
+            "is_telegram_linked": bool(user.get("telegram_chat_id")),
+        }
 
     @app.get("/api/{ws}/summary", dependencies=[Depends(_require_token)])
     def summary(ws: str):
