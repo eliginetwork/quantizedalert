@@ -67,3 +67,4 @@ def test_ticker_tape_formatting():
     assert tape[1]["price_str"] == "$90.00"
     assert "▼ -1.50%" in tape[1]["change_str"]
     assert tape[1]["css_class"] == "ticker-down"
+

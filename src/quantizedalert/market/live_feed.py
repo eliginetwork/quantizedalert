@@ -540,7 +540,7 @@ class LivePriceDaemon:
 # Global instances
 _feed_instance: UnifiedMarketDataFeed | None = None
 _daemon_instance: LivePriceDaemon | None = None
-_feed_lock = threading.Lock()
+_feed_lock = threading.RLock()
 
 
 def get_live_feed() -> UnifiedMarketDataFeed:
@@ -555,9 +555,9 @@ def get_live_feed() -> UnifiedMarketDataFeed:
 def start_price_daemon(interval_sec: float = 15.0) -> LivePriceDaemon:
     """Start the global LivePriceDaemon."""
     global _daemon_instance
+    feed = get_live_feed()
     with _feed_lock:
         if _daemon_instance is None:
-            feed = get_live_feed()
             _daemon_instance = LivePriceDaemon(feed, interval_sec=interval_sec)
             _daemon_instance.start()
         return _daemon_instance
