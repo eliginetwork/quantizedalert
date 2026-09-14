@@ -66,12 +66,23 @@ def clear_cache() -> None:
 
 
 def get_current_price(ticker: str, session: Any = None) -> float | None:
-    """Fetch current market price for a given US ticker."""
+    """Fetch current market price for a given US or China ticker."""
     t_clean = ticker.upper().strip()
     cached = _cache_get(t_clean, _price_cache, PRICE_CACHE_TTL)
     if cached is not None:
         return cached
 
+    # 1. Fast path: check unified live feed (Alpaca / Finnhub / Sina)
+    try:
+        from quantizedalert.market.live_feed import get_live_feed
+        lq = get_live_feed().get_quote(t_clean)
+        if lq and lq.price and lq.price > 0:
+            _cache_set(t_clean, lq.price, _price_cache)
+            return lq.price
+    except Exception as e:
+        logger.debug("Live feed lookup error for %s: %s", t_clean, e)
+
+    # 2. Slow fallback: yfinance
     _rate_limiter.wait()
     try:
         import yfinance as yf

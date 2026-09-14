@@ -106,8 +106,30 @@ class PaperTradingEngine:
         except Exception as e:
             logger.warning("Failed saving execution state: %s", e)
 
-    def get_total_equity(self) -> float:
+    def refresh_market_prices(self) -> None:
+        """Fetch latest market prices for all open positions and update valuations."""
+        if not self.positions:
+            return
+        try:
+            from quantizedalert.market.live_feed import get_live_feed
+            feed = get_live_feed()
+            quotes = feed.get_quotes_batch(list(self.positions.keys()))
+            changed = False
+            for sym, pos in self.positions.items():
+                q = quotes.get(sym) or quotes.get(sym.upper())
+                if q and q.price and q.price > 0:
+                    if pos.current_price != q.price:
+                        pos.current_price = q.price
+                        changed = True
+            if changed:
+                self._save_state()
+        except Exception as e:
+            logger.debug("Failed refreshing market prices for positions: %s", e)
+
+    def get_total_equity(self, refresh: bool = False) -> float:
         """Total portfolio equity (cash + market value of all open positions)."""
+        if refresh:
+            self.refresh_market_prices()
         mv = sum(p.market_value for p in self.positions.values())
         return self.cash + mv
 
@@ -247,9 +269,11 @@ class PaperTradingEngine:
             reason=f"Auto-trade from Alert {event.event_id} ({event.title})",
         )
 
-    def get_portfolio_summary(self) -> dict[str, Any]:
-        """Return human-readable portfolio snapshot."""
+    def get_portfolio_summary(self, refresh: bool = True) -> dict[str, Any]:
+        """Return human-readable portfolio snapshot with refreshed live valuations."""
         with self._lock:
+            if refresh:
+                self.refresh_market_prices()
             return {
                 "cash": round(self.cash, 2),
                 "total_equity": round(self.get_total_equity(), 2),

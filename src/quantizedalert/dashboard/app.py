@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from quantizedalert.config import PlatformConfig, WorkspaceConfig
+from quantizedalert.market.live_feed import get_live_feed, start_price_daemon
 from quantizedalert.store import Store
 
 
@@ -1034,26 +1035,14 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
 <div class="content-wrapper">
   <!-- Live Market Ticker Tape -->
   <div class="ticker-tape">
-    <div class="ticker-content">
-      <div class="ticker-item"><span class="ticker-sym">SPY</span><span class="ticker-val">$584.20</span><span class="ticker-up">▲ +0.72%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">QQQ</span><span class="ticker-val">$499.80</span><span class="ticker-up">▲ +1.15%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-val">$119.50</span><span class="ticker-up">▲ +2.84%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">AAPL</span><span class="ticker-val">$225.10</span><span class="ticker-up">▲ +0.55%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLE</span><span class="ticker-val">$92.40</span><span class="ticker-up">▲ +2.10%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLK</span><span class="ticker-val">$229.00</span><span class="ticker-up">▲ +1.32%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">GOLD</span><span class="ticker-val">$2,586.40</span><span class="ticker-up">▲ +0.94%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">BTC/USD</span><span class="ticker-val">$68,850</span><span class="ticker-up">▲ +3.20%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">10Y UST</span><span class="ticker-val">3.62%</span><span class="ticker-down">▼ -0.05%</span></div>
+    <div class="ticker-content" id="desk-ticker-track">
+      {% for t in ticker_items %}
+      <div class="ticker-item"><span class="ticker-sym">{{ t.symbol }}</span><span class="ticker-val">{{ t.price_str }}</span><span class="{{ t.css_class }}">{{ t.change_str }}</span></div>
+      {% endfor %}
       <!-- Duplicate for infinite seamless scroll -->
-      <div class="ticker-item"><span class="ticker-sym">SPY</span><span class="ticker-val">$584.20</span><span class="ticker-up">▲ +0.72%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">QQQ</span><span class="ticker-val">$499.80</span><span class="ticker-up">▲ +1.15%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-val">$119.50</span><span class="ticker-up">▲ +2.84%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">AAPL</span><span class="ticker-val">$225.10</span><span class="ticker-up">▲ +0.55%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLE</span><span class="ticker-val">$92.40</span><span class="ticker-up">▲ +2.10%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLK</span><span class="ticker-val">$229.00</span><span class="ticker-up">▲ +1.32%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">GOLD</span><span class="ticker-val">$2,586.40</span><span class="ticker-up">▲ +0.94%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">BTC/USD</span><span class="ticker-val">$68,850</span><span class="ticker-up">▲ +3.20%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">10Y UST</span><span class="ticker-val">3.62%</span><span class="ticker-down">▼ -0.05%</span></div>
+      {% for t in ticker_items %}
+      <div class="ticker-item"><span class="ticker-sym">{{ t.symbol }}</span><span class="ticker-val">{{ t.price_str }}</span><span class="{{ t.css_class }}">{{ t.change_str }}</span></div>
+      {% endfor %}
     </div>
   </div>
 
@@ -1883,10 +1872,27 @@ async function submitTelegram(e) {
     msgEl.style.display = 'block';
     msgEl.style.color = '#FF3366';
     msgEl.innerText = 'Error: ' + err.message;
-    btn.disabled = false;
-    btn.innerText = 'ACTIVATE TELEGRAM ALERTS →';
+// Live Market Ticker Tape & Rate-Limit Polling (every 15s)
+async function updateLiveTickerTape() {
+  try {
+    const res = await fetch('/api/v1/market/live_tape');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.ticker_tape && data.ticker_tape.length > 0) {
+      const track = document.getElementById('desk-ticker-track');
+      if (track) {
+        let html = '';
+        data.ticker_tape.forEach(t => {
+          html += `<div class="ticker-item"><span class="ticker-sym">${t.symbol}</span><span class="ticker-val">${t.price_str}</span><span class="${t.css_class}">${t.change_str}</span></div>`;
+        });
+        track.innerHTML = html + html;
+      }
+    }
+  } catch (e) {
+    // silent fallback
   }
 }
+setInterval(updateLiveTickerTape, 15000);
 
 window.addEventListener('load', initClerk);
 
@@ -1919,16 +1925,14 @@ _PORTAL_TEMPLATE = """<!doctype html>
 <div class="content-wrapper">
   <!-- Live Market Ticker Tape -->
   <div class="ticker-tape">
-    <div class="ticker-content">
-      <div class="ticker-item"><span class="ticker-sym">SPY</span><span class="ticker-val">$584.20</span><span class="ticker-up">▲ +0.72%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">QQQ</span><span class="ticker-val">$499.80</span><span class="ticker-up">▲ +1.15%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-val">$119.50</span><span class="ticker-up">▲ +2.84%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">AAPL</span><span class="ticker-val">$225.10</span><span class="ticker-up">▲ +0.55%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLE</span><span class="ticker-val">$92.40</span><span class="ticker-up">▲ +2.10%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">XLK</span><span class="ticker-val">$229.00</span><span class="ticker-up">▲ +1.32%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">GOLD</span><span class="ticker-val">$2,586.40</span><span class="ticker-up">▲ +0.94%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">BTC/USD</span><span class="ticker-val">$68,850</span><span class="ticker-up">▲ +3.20%</span></div>
-      <div class="ticker-item"><span class="ticker-sym">10Y UST</span><span class="ticker-val">3.62%</span><span class="ticker-down">▼ -0.05%</span></div>
+    <div class="ticker-content" id="portal-ticker-track">
+      {% for t in ticker_items %}
+      <div class="ticker-item"><span class="ticker-sym">{{ t.symbol }}</span><span class="ticker-val">{{ t.price_str }}</span><span class="{{ t.css_class }}">{{ t.change_str }}</span></div>
+      {% endfor %}
+      <!-- Duplicate for infinite seamless scroll -->
+      {% for t in ticker_items %}
+      <div class="ticker-item"><span class="ticker-sym">{{ t.symbol }}</span><span class="ticker-val">{{ t.price_str }}</span><span class="{{ t.css_class }}">{{ t.change_str }}</span></div>
+      {% endfor %}
     </div>
   </div>
 
@@ -2131,6 +2135,29 @@ function animate() {
   }
   requestAnimationFrame(animate);
 }
+
+// Live Market Ticker Tape Polling (every 15s)
+async function updatePortalTickerTape() {
+  try {
+    const res = await fetch('/api/v1/market/live_tape');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.ticker_tape && data.ticker_tape.length > 0) {
+      const track = document.getElementById('portal-ticker-track');
+      if (track) {
+        let html = '';
+        data.ticker_tape.forEach(t => {
+          html += `<div class="ticker-item"><span class="ticker-sym">${t.symbol}</span><span class="ticker-val">${t.price_str}</span><span class="${t.css_class}">${t.change_str}</span></div>`;
+        });
+        track.innerHTML = html + html;
+      }
+    }
+  } catch (e) {
+    // silent fallback
+  }
+}
+setInterval(updatePortalTickerTape, 15000);
+
 animate();
 </script>
 </body>
@@ -2148,6 +2175,15 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         "CLERK_PUBLISHABLE_KEY",
         "pk_test_c21hcnQtaW5zZWN0LTY5OTIuY2xlcmsuYWNjb3VudHMuZGV2JA"
     )
+
+    # Start live price prefetching daemon on app startup
+    @app.on_event("startup")
+    def on_startup():
+        try:
+            from quantizedalert.market.live_feed import start_price_daemon
+            start_price_daemon(interval_sec=15.0)
+        except Exception as e:
+            logger.warning("Could not start LivePriceDaemon: %s", e)
 
     def workspace_ids() -> list[str]:
         p = platform_cfg.workspace_dir
@@ -2662,6 +2698,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             is_gem_desk=is_gem_desk,
             gem_candidates=gem_candidates,
             clerk_publishable_key=clerk_publishable_key,
+            ticker_items=get_live_feed().get_ticker_tape(),
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -2692,7 +2729,8 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         return portal_tpl.render(
             css=_LUXURY_CSS,
             workspaces=workspaces_meta,
-            clerk_publishable_key=clerk_publishable_key
+            clerk_publishable_key=clerk_publishable_key,
+            ticker_items=get_live_feed().get_ticker_tape(),
         )
 
     @app.get("/w/{ws}", response_class=HTMLResponse)
@@ -2776,5 +2814,25 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
     def mark_viewed(ws: str, event_id: str):
         store.mark_alert_viewed(event_id)
         return {"ok": True}
+
+    @app.get("/api/v1/market/live_tape")
+    def api_live_tape():
+        from quantizedalert.market.live_feed import get_live_feed
+        feed = get_live_feed()
+        return {"ok": True, "ticker_tape": feed.get_ticker_tape(), "timestamp": time.time()}
+
+    @app.get("/api/v1/market/rate_limits")
+    def api_market_rate_limits():
+        from quantizedalert.market.live_feed import get_live_feed
+        feed = get_live_feed()
+        return {"ok": True, "rate_limits": feed.rate_monitor.get_stats()}
+
+    @app.get("/api/v1/market/quotes")
+    def api_market_quotes(symbols: str = "NVDA,AAPL,ASTS,RKLB,LLY,QQQ,SPY"):
+        from quantizedalert.market.live_feed import get_live_feed
+        feed = get_live_feed()
+        sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        quotes = feed.get_quotes_batch(sym_list)
+        return {"ok": True, "quotes": {k: v.to_dict() for k, v in quotes.items()}}
 
     return app
