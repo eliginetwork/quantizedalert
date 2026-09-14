@@ -1471,11 +1471,13 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
 
 <script>
 // Interactive Tab Switching
-function switchTab(tabId) {
+function switchTab(tabId, ev) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  document.getElementById(tabId).classList.add('active');
+  const target = (ev && ev.currentTarget) || (typeof event !== 'undefined' && event && event.currentTarget);
+  if (target) target.classList.add('active');
+  const panel = document.getElementById(tabId);
+  if (panel) panel.classList.add('active');
 }
 
 // 1-Click Copy Post for X (Twitter / FinTwit)
