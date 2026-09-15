@@ -54,6 +54,18 @@ class PaperOrderRequest(BaseModel):
     workspace_id: str = "alpha_gems"
 
 
+class UserWatchlistAddRequest(BaseModel):
+    clerk_id: str
+    ticker: str
+    target_price: float | None = None
+    notes: str = ""
+
+
+class UserWatchlistDeleteRequest(BaseModel):
+    clerk_id: str
+    ticker: str
+
+
 _LUXURY_CSS = """
 :root {
   --bg-deep: #05070B;
@@ -1303,6 +1315,26 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
       </table>
       {% endif %}
     </div>
+
+    <!-- Personal Live Watchlist (Iteration 7) -->
+    <div id="custom-watchlist-section" style="margin-top:20px; background:rgba(16,22,34,0.72); border:1px solid var(--border-gold); border-radius:12px; padding:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <span style="font-family:var(--font-serif); font-size:15px; font-weight:700; color:var(--gold-light);">★ PERSONAL LIVE WATCHLIST</span>
+          <span style="font-size:11px; color:var(--text-silver); margin-left:8px;">Custom real-time monitored equities</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="add-watchlist-input" placeholder="TICKER (e.g. TSLA)"
+                 style="background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:6px 12px; border-radius:6px; font-family:var(--font-mono); font-size:12px; text-transform:uppercase; outline:none; width:140px;">
+          <button class="gold-badge" style="cursor:pointer; background:linear-gradient(135deg, var(--gold-primary), var(--gold-warm)); color:#000; font-weight:700; border:none; padding:6px 14px; font-size:11px; border-radius:6px;" onclick="addCustomWatchlistTicker()">
+            + ADD
+          </button>
+        </div>
+      </div>
+      <div id="custom-watchlist-items" style="display:flex; flex-wrap:wrap; gap:10px;">
+        <div style="font-size:12px; color:var(--text-silver); padding:8px 0;">Add custom tickers to your personal watchlist to monitor live quotes and breakout alerts.</div>
+      </div>
+    </div>
   </div>
 
   <!-- Tab 2: S&P 500 GICS Sectors -->
@@ -2240,7 +2272,116 @@ async function updateLiveTickerTape() {
 }
 setInterval(updateLiveTickerTape, 15000);
 
-window.addEventListener('load', initClerk);
+// Server-Sent Events (SSE) Real-Time Market Stream (Iteration 7)
+function initSSEMarketStream() {
+  if (!window.EventSource) return;
+  try {
+    const es = new EventSource('/api/v1/market/stream');
+    es.onmessage = function(e) {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.ticker_tape && data.ticker_tape.length > 0) {
+          const track = document.getElementById('desk-ticker-track');
+          if (track) {
+            let html = '';
+            data.ticker_tape.forEach(t => {
+              const prev = prevPriceMap[t.symbol];
+              let pulseClass = '';
+              if (prev !== undefined && t.price_str !== prev) {
+                pulseClass = t.css_class === 'ticker-up' ? 'tick-up-pulse' : 'tick-down-pulse';
+              }
+              prevPriceMap[t.symbol] = t.price_str;
+              html += `<div class="ticker-item ${pulseClass}"><span class="ticker-sym">${t.symbol}</span><span class="ticker-val">${t.price_str}</span><span class="${t.css_class}">${t.change_str}</span></div>`;
+            });
+            track.innerHTML = html + html;
+          }
+        }
+      } catch (err) {}
+    };
+    es.onerror = function() {
+      es.close();
+      setTimeout(initSSEMarketStream, 10000);
+    };
+  } catch (e) {}
+}
+
+// Custom User Watchlist (Iteration 7)
+async function loadCustomWatchlist() {
+  const container = document.getElementById('custom-watchlist-items');
+  if (!container) return;
+  const clerkId = currentUser && currentUser.clerk_id ? currentUser.clerk_id : 'guest';
+  try {
+    const res = await fetch('/api/v1/user/watchlist?clerk_id=' + encodeURIComponent(clerkId));
+    if (res.ok) {
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        let html = '';
+        data.items.forEach(it => {
+          const chgSign = it.change_pct >= 0 ? '+' : '';
+          const chgCls = it.change_pct >= 0 ? 'pos' : 'neg';
+          html += `
+            <div style="background:#070A10; border:1px solid rgba(212,175,55,0.3); border-radius:8px; padding:8px 14px; display:flex; align-items:center; gap:12px;">
+              <div>
+                <span class="asset-code" style="cursor:pointer;" onclick="openOrderModal('${it.ticker}', 'BUY')">${it.ticker}</span>
+                <span style="font-family:var(--font-mono); font-size:12px; margin-left:6px; color:#FFF;">$${it.price.toFixed(2)}</span>
+                <span class="${chgCls}" style="font-size:11px; margin-left:4px;">${chgSign}${it.change_pct.toFixed(2)}%</span>
+              </div>
+              <button class="gold-badge" style="cursor:pointer; font-size:10px; padding:2px 6px; border:1px solid var(--border-gold);" onclick="openOrderModal('${it.ticker}', 'BUY')">TRADE</button>
+              <button style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:13px;" onclick="removeCustomWatchlistTicker('${it.ticker}')">&times;</button>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      } else {
+        container.innerHTML = '<div style="font-size:12px; color:var(--text-silver); padding:8px 0;">Your watchlist is currently empty. Add tickers above to monitor real-time prices.</div>';
+      }
+    }
+  } catch (err) {}
+}
+
+async function addCustomWatchlistTicker() {
+  const input = document.getElementById('add-watchlist-input');
+  if (!input) return;
+  const ticker = input.value.trim().toUpperCase();
+  if (!ticker) return;
+  const clerkId = currentUser && currentUser.clerk_id ? currentUser.clerk_id : 'guest';
+
+  try {
+    const res = await fetch('/api/v1/user/watchlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clerk_id: clerkId, ticker: ticker })
+    });
+    if (res.ok) {
+      input.value = '';
+      loadCustomWatchlist();
+    } else {
+      alert('Failed to add ticker to watchlist.');
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+async function removeCustomWatchlistTicker(ticker) {
+  const clerkId = currentUser && currentUser.clerk_id ? currentUser.clerk_id : 'guest';
+  try {
+    const res = await fetch('/api/v1/user/watchlist', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clerk_id: clerkId, ticker: ticker })
+    });
+    if (res.ok) {
+      loadCustomWatchlist();
+    }
+  } catch (err) {}
+}
+
+window.addEventListener('load', () => {
+  initClerk();
+  initSSEMarketStream();
+  loadCustomWatchlist();
+});
 
 animate();
 </script>
@@ -3376,6 +3517,69 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         sce = get_strategy_compare_engine()
         cdata = sce.get_comparison_data(days=days)
         return {"ok": True, "comparison": cdata}
+
+    @app.get("/api/v1/market/stream")
+    async def api_market_stream(limit: int | None = None):
+        import asyncio
+        from fastapi.responses import StreamingResponse
+
+        async def event_generator():
+            from quantizedalert.market.live_feed import get_live_feed
+            feed = get_live_feed()
+            count = 0
+            while True:
+                tape = feed.get_ticker_tape()
+                payload = {
+                    "event": "tick",
+                    "timestamp": time.time(),
+                    "ticker_tape": tape,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                count += 1
+                if limit is not None and count >= limit:
+                    break
+                await asyncio.sleep(3)
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    @app.get("/api/v1/user/watchlist")
+    def api_user_watchlist_get(clerk_id: str = "guest"):
+        items = store.get_user_watchlist(clerk_id) if store else []
+        from quantizedalert.market.live_feed import get_live_feed
+        feed = get_live_feed()
+        enriched = []
+        for it in items:
+            sym = it["ticker"]
+            q = feed.get_quote(sym)
+            price = q.price if (q and q.price) else (it.get("target_price") or 100.0)
+            chg = q.change_pct if (q and q.change_pct is not None) else 0.0
+            enriched.append({
+                "ticker": sym,
+                "price": price,
+                "change_pct": chg,
+                "target_price": it.get("target_price"),
+                "notes": it.get("notes", ""),
+                "created_at": it.get("created_at", ""),
+            })
+        return {"ok": True, "items": enriched, "clerk_id": clerk_id}
+
+    @app.post("/api/v1/user/watchlist")
+    def api_user_watchlist_add(req: UserWatchlistAddRequest):
+        if not store:
+            raise HTTPException(status_code=500, detail="Store unavailable")
+        sym_clean = req.ticker.strip().upper()
+        if not sym_clean:
+            raise HTTPException(status_code=400, detail="Ticker required")
+        store.add_user_watchlist_ticker(req.clerk_id, sym_clean, req.target_price, req.notes)
+        return {"ok": True, "ticker": sym_clean, "clerk_id": req.clerk_id}
+
+    @app.delete("/api/v1/user/watchlist")
+    def api_user_watchlist_delete(req: UserWatchlistDeleteRequest):
+        if not store:
+            raise HTTPException(status_code=500, detail="Store unavailable")
+        sym_clean = req.ticker.strip().upper()
+        store.remove_user_watchlist_ticker(req.clerk_id, sym_clean)
+        return {"ok": True, "ticker": sym_clean, "clerk_id": req.clerk_id}
 
     return app
 

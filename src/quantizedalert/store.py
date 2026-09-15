@@ -82,6 +82,16 @@ CREATE TABLE IF NOT EXISTS drift (
   id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT, model_id TEXT, asof TEXT,
   metric TEXT, value REAL, baseline REAL, detail TEXT, created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS user_watchlists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,
+  ticker TEXT,
+  target_price REAL,
+  notes TEXT,
+  created_at TEXT,
+  UNIQUE(user_id, ticker)
+);
+CREATE INDEX IF NOT EXISTS ix_user_watchlists_user ON user_watchlists(user_id);
 """
 
 
@@ -403,6 +413,28 @@ class Store:
                 "SELECT DISTINCT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL AND trim(telegram_chat_id) != ''"
             ).fetchall()
             return [str(r["telegram_chat_id"]).strip() for r in rows if r["telegram_chat_id"]]
+
+    # ---------- custom user watchlists (Iteration 7) ----------
+    def add_user_watchlist_ticker(self, user_id: str, ticker: str, target_price: float | None = None, notes: str = "") -> bool:
+        clean_t = ticker.upper().strip()
+        with self._conn() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO user_watchlists (user_id, ticker, target_price, notes, created_at) "
+                "VALUES (?, ?, ?, ?, datetime('now'))",
+                (user_id, clean_t, target_price, notes)
+            )
+        return True
+
+    def remove_user_watchlist_ticker(self, user_id: str, ticker: str) -> bool:
+        clean_t = ticker.upper().strip()
+        with self._conn() as c:
+            c.execute("DELETE FROM user_watchlists WHERE user_id=? AND ticker=?", (user_id, clean_t))
+        return True
+
+    def get_user_watchlist(self, user_id: str) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM user_watchlists WHERE user_id=? ORDER BY created_at DESC", (user_id,)).fetchall()
+            return [dict(r) for r in rows]
 
     # ---------- data health / drift ----------
     def put_data_health(self, workspace_id: str, asof: str, status: str,
