@@ -1465,6 +1465,44 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
 
   <!-- Tab 5: Run Audit & Lineage -->
   <div id="tab-history" class="tab-panel">
+    <!-- Multi-Strategy Walk-Forward Performance Comparison (Iteration 6) -->
+    <div style="background:rgba(16,22,34,0.72); border:1px solid var(--border-gold); border-radius:12px; padding:20px; margin-bottom:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <div style="font-family:var(--font-serif); font-size:16px; font-weight:700; color:var(--gold-light);">WALK-FORWARD STRATEGY BENCHMARK &amp; EQUITY CURVES</div>
+          <div style="font-size:12px; color:var(--text-silver);">Cumulative growth comparison of $100K initial capital across quantitative lineages vs S&amp;P 500</div>
+        </div>
+        <div style="display:flex; gap:16px; font-family:var(--font-mono); font-size:11px;">
+          <span style="display:flex; align-items:center; gap:6px;"><span style="display:inline-block; width:12px; height:3px; background:#00E676; border-radius:2px;"></span> 10X Gem Radar</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="display:inline-block; width:12px; height:3px; background:#D4AF37; border-radius:2px;"></span> Ridge Alpha158</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="display:inline-block; width:12px; height:3px; background:#4B90E2; border-radius:2px;"></span> S&amp;P 500 (SPY)</span>
+        </div>
+      </div>
+      <div>
+        {{ strategy_chart_svg | safe }}
+      </div>
+      <!-- Strategy Performance Scorecards -->
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:16px;">
+        {% for st in strategy_stats %}
+        <div style="background:#070A10; border:1px solid rgba(212,175,55,0.18); border-radius:8px; padding:12px;">
+          <div style="font-size:11px; font-family:var(--font-mono); color:{{ st.color }}; font-weight:700; margin-bottom:4px;">{{ st.name | upper }}</div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px;">
+            <span style="color:var(--text-silver);">Total Return:</span>
+            <span class="pos" style="font-weight:700;">+{{ st.total_return_pct }}%</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px;">
+            <span style="color:var(--text-silver);">Final Equity:</span>
+            <span style="color:#FFF; font-family:var(--font-mono);">${{ '{:,.2f}'.format(st.final_equity) }}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;">
+            <span style="color:var(--text-silver);">Max Drawdown:</span>
+            <span style="color:#FF9900;">-{{ st.max_drawdown_pct }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
     <div class="table-card">
       <table>
         <thead>
@@ -2760,6 +2798,18 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         except Exception:
             pass
 
+        # Stage 5: Multi-Strategy Walk-Forward Comparison (Iteration 6)
+        strategy_chart_svg = ""
+        strategy_stats = []
+        try:
+            from quantizedalert.analysis.strategy_compare import get_strategy_compare_engine
+            sce = get_strategy_compare_engine()
+            cdata = sce.get_comparison_data(days=60)
+            strategy_chart_svg = cdata.get("chart_svg", "")
+            strategy_stats = cdata.get("strategies", [])
+        except Exception:
+            pass
+
         model_desc = ""
         model_id = run["model_id"] if run else "ridge_alpha158"
         if run:
@@ -3069,6 +3119,8 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             risk_concentration_status=risk_concentration_status,
             risk_top_asset=risk_top_asset,
             risk_top_pct=risk_top_pct,
+            strategy_chart_svg=strategy_chart_svg,
+            strategy_stats=strategy_stats,
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -3317,6 +3369,13 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         re = get_portfolio_risk_engine()
         risk_matrix = re.compute_risk_matrix(psum)
         return {"ok": True, "risk_matrix": risk_matrix.to_dict()}
+
+    @app.get("/api/v1/backtest/compare")
+    def api_backtest_compare(days: int = 60):
+        from quantizedalert.analysis.strategy_compare import get_strategy_compare_engine
+        sce = get_strategy_compare_engine()
+        cdata = sce.get_comparison_data(days=days)
+        return {"ok": True, "comparison": cdata}
 
     return app
 
