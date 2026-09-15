@@ -1875,6 +1875,11 @@ async function submitTelegram(e) {
     msgEl.style.display = 'block';
     msgEl.style.color = '#FF3366';
     msgEl.innerText = 'Error: ' + err.message;
+    btn.disabled = false;
+    btn.innerText = 'TRY AGAIN';
+  }
+}
+
 // Live Market Ticker Tape & Rate-Limit Polling (every 15s)
 async function updateLiveTickerTape() {
   try {
