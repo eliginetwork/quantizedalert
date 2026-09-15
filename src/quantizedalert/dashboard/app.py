@@ -40,6 +40,15 @@ class TelegramLinkRequest(BaseModel):
     telegram_username: str | None = None
 
 
+class PaperOrderRequest(BaseModel):
+    ticker: str
+    action: str = "BUY"
+    quantity: int
+    order_type: str = "MARKET"
+    limit_price: float | None = None
+    workspace_id: str = "alpha_gems"
+
+
 _LUXURY_CSS = """
 :root {
   --bg-deep: #05070B;
@@ -1375,8 +1384,11 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
       </div>
     </div>
     <div class="table-card">
-      <div style="padding:16px 20px; border-bottom:1px solid var(--border-gold); font-family:var(--font-mono); font-size:12px; color:var(--gold-warm);">
-        ACTIVE SIMULATED PORTFOLIO POSITIONS
+      <div style="padding:16px 20px; border-bottom:1px solid var(--border-gold); display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:var(--font-mono); font-size:12px; color:var(--gold-warm); font-weight:700;">ACTIVE SIMULATED PORTFOLIO POSITIONS</span>
+        <button id="btn-open-order" class="gold-badge" style="cursor:pointer; background:linear-gradient(135deg, var(--gold-primary), var(--gold-warm)); color:#000; font-weight:700; padding:6px 16px; font-size:11px; border:none; border-radius:6px; box-shadow:0 0 10px var(--gold-glow);" onclick="openOrderModal()">
+          + EXECUTE ORDER
+        </button>
       </div>
       <table>
         <thead>
@@ -1388,21 +1400,27 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
             <th>Intraday Trend</th>
             <th>Market Value</th>
             <th>Unrealized PnL</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for p in paper_positions %}
           <tr>
-            <td><span class="asset-code">{{ p.ticker }}</span></td>
+            <td><span class="asset-code" style="cursor:pointer;" onclick="openOrderModal('{{ p.ticker }}', 'BUY')">{{ p.ticker }}</span></td>
             <td>{{ p.quantity }} shs</td>
             <td>${{ p.average_cost }}</td>
             <td id="pos-price-{{ p.ticker }}">${{ p.current_price }}</td>
             <td>{{ p.sparkline_svg | safe }}</td>
             <td id="pos-mv-{{ p.ticker }}">${{ p.market_value }}</td>
             <td id="pos-pnl-{{ p.ticker }}" class="{{ 'pos' if p.is_pos else 'neg' }}">${{ p.unrealized_pnl }}</td>
+            <td>
+              <button class="gold-badge" style="cursor:pointer; font-size:10px; padding:3px 8px; border:1px solid var(--border-gold);" onclick="openOrderModal('{{ p.ticker }}', 'SELL')">
+                SELL / CLOSE
+              </button>
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No open positions currently held in paper account.</td></tr>
+          <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">No open positions currently held in paper account.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -1490,6 +1508,66 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
         </button>
       </form>
       <div id="telegram-status-msg" style="margin-top:12px; font-size:12px; text-align:center; display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Simulated Order Execution Modal -->
+<div id="order-modal" class="modal-backdrop" onclick="closeOrderModal(event)">
+  <div class="modal-dialog" onclick="event.stopPropagation()" style="max-width:500px;">
+    <button class="modal-close" onclick="closeOrderModalDirect()">&times;</button>
+    <div class="modal-tag">💼 PAPER TRADING ENGINE</div>
+    <div class="modal-title">Execute Simulated Order</div>
+    <div class="modal-body">
+      <p style="font-size:12px; color:var(--text-silver); margin-bottom:14px;">
+        Transmit paper trades directly into the execution engine. Fills are realistically simulated with live tick pricing, 5 bps slippage, and automated ledger accounting.
+      </p>
+
+      <form id="order-form" onsubmit="submitPaperOrder(event)">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+          <div>
+            <label style="display:block; font-size:11px; font-family:var(--font-mono); color:var(--gold-light); margin-bottom:6px;">ASSET TICKER</label>
+            <input type="text" id="order-ticker" value="ASTS" required placeholder="e.g. NVDA, ASTS"
+                   style="width:100%; background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:9px 12px; border-radius:6px; font-family:var(--font-mono); font-size:13px; text-transform:uppercase; outline:none;" oninput="updateOrderPreview()">
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; font-family:var(--font-mono); color:var(--gold-light); margin-bottom:6px;">ACTION</label>
+            <select id="order-action" onchange="updateOrderPreview()"
+                    style="width:100%; background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:9px 12px; border-radius:6px; font-family:var(--font-mono); font-size:13px; outline:none;">
+              <option value="BUY">BUY (LONG)</option>
+              <option value="SELL">SELL (CLOSE / SHORT)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+          <div>
+            <label style="display:block; font-size:11px; font-family:var(--font-mono); color:var(--gold-light); margin-bottom:6px;">QUANTITY (SHARES)</label>
+            <input type="number" id="order-qty" value="50" min="1" max="100000" required
+                   style="width:100%; background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:9px 12px; border-radius:6px; font-family:var(--font-mono); font-size:13px; outline:none;" oninput="updateOrderPreview()">
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; font-family:var(--font-mono); color:var(--gold-light); margin-bottom:6px;">ORDER TYPE</label>
+            <select id="order-type" onchange="updateOrderPreview()"
+                    style="width:100%; background:#0B0F17; border:1px solid var(--border-gold); color:#FFF; padding:9px 12px; border-radius:6px; font-family:var(--font-mono); font-size:13px; outline:none;">
+              <option value="MARKET">MARKET (IMMEDIATE)</option>
+              <option value="LIMIT">LIMIT</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Order Summary Box -->
+        <div id="order-preview-box" style="background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:12px; margin-bottom:16px; font-size:12px; font-family:var(--font-mono); line-height:1.6;">
+          <div style="display:flex; justify-content:space-between;"><span>Execution Price:</span><span id="preview-price" style="color:#FFF;">Fetching...</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Simulated Slippage:</span><span style="color:var(--text-silver);">5.0 bps (0.05%)</span></div>
+          <div style="display:flex; justify-content:space-between; border-top:1px dashed rgba(212,175,55,0.2); margin-top:6px; padding-top:6px; font-weight:700;"><span>Estimated Value:</span><span id="preview-total" style="color:var(--gold-primary);">$0.00</span></div>
+        </div>
+
+        <button type="submit" id="order-submit-btn" class="gold-badge" style="width:100%; padding:11px; cursor:pointer; background:linear-gradient(135deg, var(--gold-primary), var(--gold-warm)); color:#000; font-weight:700; border:none; border-radius:6px; font-size:13px; box-shadow:0 0 14px var(--gold-glow);">
+          CONFIRM &amp; TRANSMIT SIMULATED ORDER &rarr;
+        </button>
+      </form>
+      <div id="order-status-msg" style="margin-top:12px; font-size:12px; text-align:center; display:none; font-family:var(--font-mono);"></div>
     </div>
   </div>
 </div>
@@ -1902,6 +1980,119 @@ async function submitTelegram(e) {
     msgEl.innerText = 'Error: ' + err.message;
     btn.disabled = false;
     btn.innerText = 'TRY AGAIN';
+  }
+}
+
+// Interactive Simulated Order Ticket (Iteration 2)
+let currentOrderPrice = null;
+
+function openOrderModal(ticker, defaultAction) {
+  const m = document.getElementById('order-modal');
+  if (m) {
+    const tInput = document.getElementById('order-ticker');
+    const aInput = document.getElementById('order-action');
+    if (tInput && ticker) tInput.value = ticker.toUpperCase();
+    if (aInput && defaultAction) aInput.value = defaultAction;
+    m.classList.add('active');
+    updateOrderPreview();
+  }
+}
+
+function closeOrderModal(e) {
+  if (e.target.id === 'order-modal') closeOrderModalDirect();
+}
+
+function closeOrderModalDirect() {
+  const m = document.getElementById('order-modal');
+  if (m) m.classList.remove('active');
+}
+
+let previewDebounceTimer = null;
+async function updateOrderPreview() {
+  const tickerInput = document.getElementById('order-ticker');
+  const qtyInput = document.getElementById('order-qty');
+  const priceEl = document.getElementById('preview-price');
+  const totalEl = document.getElementById('preview-total');
+  if (!tickerInput || !qtyInput || !priceEl || !totalEl) return;
+
+  const ticker = tickerInput.value.trim().toUpperCase();
+  const qty = parseInt(qtyInput.value, 10) || 0;
+  if (!ticker) {
+    priceEl.innerText = '$0.00';
+    totalEl.innerText = '$0.00';
+    return;
+  }
+
+  clearTimeout(previewDebounceTimer);
+  previewDebounceTimer = setTimeout(async () => {
+    try {
+      priceEl.innerText = 'Fetching quote...';
+      const res = await fetch('/api/v1/market/sparkline?ticker=' + encodeURIComponent(ticker));
+      if (res.ok) {
+        const data = await res.json();
+        currentOrderPrice = data.latest_price || 0;
+        priceEl.innerText = '$' + currentOrderPrice.toFixed(2);
+        const estimatedTotal = currentOrderPrice * qty * 1.0005; // incl slippage
+        totalEl.innerText = '$' + estimatedTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      } else {
+        priceEl.innerText = 'Unavailable';
+      }
+    } catch (err) {
+      priceEl.innerText = 'Unavailable';
+    }
+  }, 250);
+}
+
+async function submitPaperOrder(e) {
+  e.preventDefault();
+  const ticker = document.getElementById('order-ticker').value.trim().toUpperCase();
+  const action = document.getElementById('order-action').value;
+  const qty = parseInt(document.getElementById('order-qty').value, 10);
+  const orderType = document.getElementById('order-type').value;
+  const btn = document.getElementById('order-submit-btn');
+  const msgEl = document.getElementById('order-status-msg');
+
+  if (!ticker || qty <= 0) {
+    alert('Please specify a valid ticker and share quantity.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = 'TRANSMITTING SIMULATED ORDER...';
+  msgEl.style.display = 'block';
+  msgEl.style.color = 'var(--gold-warm)';
+  msgEl.innerText = 'Routing order to execution engine...';
+
+  try {
+    const res = await fetch('/api/v1/execution/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker: ticker,
+        action: action,
+        quantity: qty,
+        order_type: orderType,
+        workspace_id: 'alpha_gems'
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      msgEl.style.color = '#00E676';
+      msgEl.innerHTML = '✓ Filled ' + qty + ' shares of ' + ticker + ' @ $' + (data.fill_price ? data.fill_price.toFixed(2) : 'MKT') + '!';
+      setTimeout(() => {
+        closeOrderModalDirect();
+        btn.disabled = false;
+        btn.innerText = 'CONFIRM & TRANSMIT SIMULATED ORDER →';
+        window.location.reload();
+      }, 1200);
+    } else {
+      throw new Error(data.detail || data.error || 'Execution rejected');
+    }
+  } catch (err) {
+    msgEl.style.color = '#FF3366';
+    msgEl.innerText = 'Order Failed: ' + err.message;
+    btn.disabled = false;
+    btn.innerText = 'RETRY TRANSMISSION';
   }
 }
 
@@ -2889,12 +3080,56 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         return {"ok": True, "quotes": {k: v.to_dict() for k, v in quotes.items()}}
 
     @app.get("/api/v1/market/sparkline")
-    def api_market_sparkline(symbol: str = "NVDA", limit: int = 24):
+    def api_market_sparkline(symbol: str | None = None, ticker: str | None = None, limit: int = 24):
         from quantizedalert.market.live_feed import generate_sparkline_svg, get_live_feed
         feed = get_live_feed()
-        sym_clean = symbol.strip().upper()
+        sym_clean = (symbol or ticker or "NVDA").strip().upper()
         bars = feed.get_sparkline_bars(sym_clean, limit=limit)
         svg = generate_sparkline_svg(bars)
-        return {"ok": True, "symbol": sym_clean, "points": bars, "svg": svg}
+        latest_price = bars[-1] if bars else 0.0
+        return {"ok": True, "symbol": sym_clean, "latest_price": latest_price, "points": bars, "svg": svg}
+
+    @app.post("/api/v1/execution/order")
+    def api_execution_place_order(req: PaperOrderRequest):
+        from quantizedalert.execution.paper_engine import get_paper_engine
+        engine = get_paper_engine()
+        order = engine.place_order(
+            workspace_id=req.workspace_id,
+            ticker=req.ticker,
+            action=req.action,
+            quantity=req.quantity,
+            order_type=req.order_type,
+            limit_price=req.limit_price,
+            reason="Manual order via interactive ticket",
+        )
+        status_val = getattr(order.status, "value", str(order.status))
+        if status_val == "REJECTED":
+            raise HTTPException(status_code=400, detail=order.reason or "Order rejected by risk engine")
+        return {
+            "ok": True,
+            "order_id": order.order_id,
+            "status": status_val,
+            "ticker": order.ticker,
+            "action": getattr(order.action, "value", str(order.action)),
+            "quantity": order.quantity,
+            "fill_price": order.fill_price,
+            "slippage": order.slippage,
+            "filled_at": order.filled_at,
+        }
+
+    @app.get("/api/v1/execution/orders")
+    def api_execution_orders(limit: int = 50):
+        from quantizedalert.execution.paper_engine import get_paper_engine
+        engine = get_paper_engine()
+        orders = [o.to_dict() for o in engine.orders[-limit:]]
+        orders.reverse()
+        return {"ok": True, "orders": orders, "count": len(orders)}
+
+    @app.get("/api/v1/execution/portfolio")
+    def api_execution_portfolio():
+        from quantizedalert.execution.paper_engine import get_paper_engine
+        engine = get_paper_engine()
+        summary = engine.get_portfolio_summary(refresh=True)
+        return {"ok": True, "portfolio": summary}
 
     return app

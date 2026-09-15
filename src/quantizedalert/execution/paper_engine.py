@@ -135,7 +135,7 @@ class PaperTradingEngine:
 
     def place_order(self, workspace_id: str, ticker: str,
                     action: str | OrderAction, quantity: int,
-                    market_price: float,
+                    market_price: float = 0.0,
                     order_type: str | OrderType = OrderType.MARKET,
                     limit_price: float | None = None,
                     reason: str = "") -> Order:
@@ -144,6 +144,33 @@ class PaperTradingEngine:
             act = OrderAction(action) if isinstance(action, str) else action
             ot = OrderType(order_type) if isinstance(order_type, str) else order_type
             t_clean = ticker.upper().strip()
+
+            if market_price <= 0.0:
+                try:
+                    from quantizedalert.market.live_feed import get_live_feed
+                    feed = get_live_feed()
+                    q = feed.get_quote(t_clean)
+                    if q and q.price and q.price > 0:
+                        market_price = q.price
+                except Exception as e:
+                    logger.warning("Could not get live quote for %s: %s", t_clean, e)
+
+            if market_price <= 0.0:
+                order_id = f"ord-{int(time.time()*1000)}"
+                rej_order = Order(
+                    order_id=order_id,
+                    workspace_id=workspace_id,
+                    ticker=t_clean,
+                    action=act,
+                    quantity=quantity,
+                    order_type=ot,
+                    limit_price=limit_price,
+                    status=OrderStatus.REJECTED,
+                    reason=f"Live market quote unavailable for {t_clean}",
+                )
+                self.orders.append(rej_order)
+                self._save_state()
+                return rej_order
 
             order_id = f"ord-{int(time.time()*1000)}"
             order = Order(
@@ -282,4 +309,16 @@ class PaperTradingEngine:
                 "active_orders_count": len([o for o in self.orders if o.status == OrderStatus.PENDING]),
                 "filled_orders_count": len([o for o in self.orders if o.status == OrderStatus.FILLED]),
             }
+
+
+_paper_engine_instance: PaperTradingEngine | None = None
+_pe_lock = threading.Lock()
+
+
+def get_paper_engine(state_dir: Path | str = "market_cache/execution") -> PaperTradingEngine:
+    global _paper_engine_instance
+    with _pe_lock:
+        if _paper_engine_instance is None:
+            _paper_engine_instance = PaperTradingEngine(state_dir=state_dir)
+        return _paper_engine_instance
 
