@@ -1168,11 +1168,18 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
     </div>
     <div class="deck-card">
       <div class="card-tag">
-        <span>MACRO SECTOR REGIME</span>
+        <span>MACRO REGIME GAUGE</span>
         <button class="info-btn" title="How sector regimes work" onclick="openInfoModal('regime')">?</button>
       </div>
-      <div class="card-val gold">{{ top_sector_etf }} · {{ top_sector_name }}</div>
-      <div class="card-sub">Rating: {{ top_sector_rating }}/100 · {{ top_sector_dir }} Bias</div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="card-val gold" style="font-size:15px; letter-spacing:0.5px;">{{ macro_label }}</div>
+          <div class="card-sub">{{ top_sector_etf }} · Rating: <b>{{ macro_score }}/100</b></div>
+        </div>
+        <div style="margin-left:4px;">
+          {{ macro_svg | safe }}
+        </div>
+      </div>
     </div>
     <div class="deck-card">
       <div class="card-tag">
@@ -2642,6 +2649,20 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
                 {"etf": "XLY", "name": "Consumer Discret.", "rating": "37.0", "direction": "SHORT", "mom_1m": -0.046, "mom_1m_s": "-4.63%", "rsi": "32.0", "picks": ["AMZN", "TSLA", "HD"]},
             ]
 
+        # Stage 1: Macro Market Regime & Volatility Gauge
+        macro_score = "76.0"
+        macro_label = "MODERATE EXPANSION"
+        macro_svg = ""
+        try:
+            from quantizedalert.analysis.macro_regime import get_macro_regime_engine
+            macro_engine = get_macro_regime_engine()
+            regime = macro_engine.calculate_regime(sectors=sectors_list)
+            macro_score = f"{regime.score:.0f}"
+            macro_label = regime.regime_label
+            macro_svg = regime.gauge_svg
+        except Exception:
+            pass
+
         # Stage 3: Paper Trading Portfolio
         paper_equity = "100,000.00"
         paper_pnl = "0.00"
@@ -2989,6 +3010,9 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             gem_candidates=gem_candidates,
             clerk_publishable_key=clerk_publishable_key,
             ticker_items=get_live_feed().get_ticker_tape(),
+            macro_score=macro_score,
+            macro_label=macro_label,
+            macro_svg=macro_svg,
         )
 
     @app.get("/", response_class=HTMLResponse)
@@ -3221,4 +3245,12 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         delivered_any = any(res.values())
         return {"ok": delivered_any, "results": res, "ticker": req.ticker, "price": price}
 
+    @app.get("/api/v1/macro/regime")
+    def api_macro_regime():
+        from quantizedalert.analysis.macro_regime import get_macro_regime_engine
+        engine = get_macro_regime_engine()
+        snapshot = engine.calculate_regime()
+        return {"ok": True, "regime": snapshot.to_dict()}
+
     return app
+
