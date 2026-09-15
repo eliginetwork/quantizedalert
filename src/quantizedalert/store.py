@@ -396,6 +396,14 @@ class Store:
         with self._conn() as c:
             return [dict(r) for r in c.execute("SELECT * FROM users ORDER BY created_at DESC")]
 
+    def get_all_telegram_chat_ids(self) -> list[str]:
+        """Return unique non-empty telegram chat IDs registered by users."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT DISTINCT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL AND trim(telegram_chat_id) != ''"
+            ).fetchall()
+            return [str(r["telegram_chat_id"]).strip() for r in rows if r["telegram_chat_id"]]
+
     # ---------- data health / drift ----------
     def put_data_health(self, workspace_id: str, asof: str, status: str,
                         detail: dict) -> None:

@@ -40,6 +40,11 @@ class TelegramLinkRequest(BaseModel):
     telegram_username: str | None = None
 
 
+class TelegramTestRequest(BaseModel):
+    chat_id: str | None = None
+    ticker: str = "ASTS"
+
+
 class PaperOrderRequest(BaseModel):
     ticker: str
     action: str = "BUY"
@@ -1493,7 +1498,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
 
       <div style="background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:8px; padding:14px; margin-bottom:16px; font-size:12px; line-height:1.6;">
         <div style="font-weight:700; color:var(--gold-warm); margin-bottom:6px;">📲 HOW TO CONNECT:</div>
-        <div>1. Open Telegram and message our bot: <b>@QuantizedAlertBot</b></div>
+        <div>1. Open Telegram and message our bot: <a href="https://t.me/Quantizedertbot" target="_blank" style="color:var(--gold-light); font-weight:700; text-decoration:underline;">@Quantizedertbot</a></div>
         <div>2. Click <b>START</b> or input your username/Chat ID below.</div>
       </div>
 
@@ -1505,6 +1510,9 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
         </div>
         <button type="submit" id="telegram-submit-btn" class="gold-badge" style="width:100%; padding:10px; cursor:pointer; background:var(--gold-primary); color:#000; font-weight:700; border:none; border-radius:6px; font-size:13px;">
           ACTIVATE TELEGRAM ALERTS &rarr;
+        </button>
+        <button type="button" id="telegram-test-btn" class="gold-badge" style="width:100%; margin-top:10px; padding:8px; cursor:pointer; background:rgba(212,175,55,0.08); border:1px solid var(--border-gold); color:var(--gold-light); font-size:11px; border-radius:6px;" onclick="sendTestTelegramAlert()">
+          ⚡ SEND TEST BREAKOUT PUSH TO TELEGRAM
         </button>
       </form>
       <div id="telegram-status-msg" style="margin-top:12px; font-size:12px; text-align:center; display:none;"></div>
@@ -1980,6 +1988,44 @@ async function submitTelegram(e) {
     msgEl.innerText = 'Error: ' + err.message;
     btn.disabled = false;
     btn.innerText = 'TRY AGAIN';
+  }
+}
+
+async function sendTestTelegramAlert() {
+  const btn = document.getElementById('telegram-test-btn');
+  const msgEl = document.getElementById('telegram-status-msg');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'DISPATCHING TEST ALERT...';
+  }
+  try {
+    const input = document.getElementById('telegram-input') ? document.getElementById('telegram-input').value.trim() : '';
+    const res = await fetch('/api/v1/telegram/test_dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: input.replace('@', ''), ticker: 'ASTS' })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.style.color = '#00E676';
+        msgEl.innerHTML = '✓ Test alert dispatched successfully to Telegram!';
+      }
+    } else {
+      throw new Error(data.detail || data.error || 'Dispatch failed');
+    }
+  } catch (err) {
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      msgEl.style.color = '#FF3366';
+      msgEl.innerText = 'Push Failed: ' + err.message;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '⚡ SEND TEST BREAKOUT PUSH TO TELEGRAM';
+    }
   }
 }
 
@@ -3131,5 +3177,48 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         engine = get_paper_engine()
         summary = engine.get_portfolio_summary(refresh=True)
         return {"ok": True, "portfolio": summary}
+
+    @app.post("/api/v1/telegram/test_dispatch")
+    def api_telegram_test_dispatch(req: TelegramTestRequest):
+        from quantizedalert.alerts.telegram_dispatcher import get_telegram_dispatcher
+        dispatcher = get_telegram_dispatcher(store=store)
+        if not dispatcher.bot_token:
+            raise HTTPException(status_code=400, detail="Telegram bot token not configured")
+
+        from quantizedalert.market.live_feed import get_live_feed
+        feed = get_live_feed()
+        quote = feed.get_quote(req.ticker)
+        price = quote.price if (quote and quote.price) else 58.79
+        change_pct = quote.change_pct if (quote and quote.change_pct is not None) else 3.8
+
+        target_p = round(price * 2.5, 2)
+        stop_p = round(price * 0.92, 2)
+        extra = [req.chat_id] if req.chat_id else None
+
+        res = dispatcher.dispatch_breakout_alert(
+            ticker=req.ticker,
+            price=price,
+            change_pct=change_pct,
+            conviction_score=94.5,
+            catalyst="FCC Constellation Authorization & Asymmetric Growth Curve",
+            target_price=target_p,
+            stop_loss=stop_p,
+            reason="Confirmed 10X Gem breakout above key resistance with high institutional volume",
+            force=True,
+        )
+        if extra and not res:
+            # If user provided a specific chat_id directly
+            for c in extra:
+                if c:
+                    res[c] = dispatcher.send_message(
+                        c,
+                        f"💎 <b>QUANTIZEDALERT • TEST CONVICTION DISPATCH</b>\n\n"
+                        f"Asset: <code>${req.ticker.upper()}</code> @ <b>${price:.2f}</b>\n"
+                        f"Conviction Score: <b>94.5/100</b>\n"
+                        f"Target: ${target_p:.2f} · Stop: ${stop_p:.2f}\n\n"
+                        f"✓ Real-time Telegram alert delivery verified successfully."
+                    )
+        delivered_any = any(res.values())
+        return {"ok": delivered_any, "results": res, "ticker": req.ticker, "price": price}
 
     return app

@@ -628,7 +628,28 @@ class LivePriceDaemon:
                 except Exception:
                     pass
 
-                self.feed.get_quotes_batch(list(symbols))
+                quotes = self.feed.get_quotes_batch(list(symbols))
+
+                # Check for automated conviction breakout alerts
+                try:
+                    from quantizedalert.alerts.telegram_dispatcher import get_telegram_dispatcher
+                    dispatcher = get_telegram_dispatcher()
+                    if dispatcher.is_configured:
+                        for sym, q in quotes.items():
+                            if q and q.change_pct and abs(q.change_pct) >= 4.0:
+                                direction = "BULLISH BREAKOUT" if q.change_pct > 0 else "VOLATILITY DOWNSIDE TRIGGER"
+                                dispatcher.dispatch_breakout_alert(
+                                    ticker=sym,
+                                    price=q.price,
+                                    change_pct=q.change_pct,
+                                    conviction_score=88.5 if q.change_pct > 0 else 72.0,
+                                    catalyst="Intraday Volume/Momentum Expansion",
+                                    target_price=round(q.price * 1.35, 2) if q.change_pct > 0 else None,
+                                    stop_loss=round(q.price * 0.92, 2) if q.change_pct > 0 else None,
+                                    reason=f"Significant {direction} crossing {abs(q.change_pct):.1f}% threshold",
+                                )
+                except Exception as ex:
+                    logger.debug("LivePriceDaemon breakout check failed: %s", ex)
             except Exception as e:
                 logger.error("Error in LivePriceDaemon cycle: %s", e)
 
