@@ -526,6 +526,27 @@ tr:hover td {
   font-family: var(--font-mono);
 }
 
+/* Technical Intraday Sparklines & Tick Pulse */
+.sparkline-svg {
+  display: inline-block;
+  vertical-align: middle;
+  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.15));
+}
+.tick-up-pulse {
+  animation: pulseGreen 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.tick-down-pulse {
+  animation: pulseRed 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+@keyframes pulseGreen {
+  0% { background: rgba(0, 230, 118, 0.35); text-shadow: 0 0 8px #00E676; }
+  100% { background: transparent; text-shadow: none; }
+}
+@keyframes pulseRed {
+  0% { background: rgba(255, 51, 102, 0.35); text-shadow: 0 0 8px #FF3366; }
+  100% { background: transparent; text-shadow: none; }
+}
+
 /* X (Twitter) FinTwit Action Buttons */
 .x-copy-btn {
   background: #000;
@@ -1176,6 +1197,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
             <th>RVOL Surge</th>
             <th>Key Catalyst</th>
             <th>Price</th>
+            <th>Trend</th>
             <th>1-Click X Post</th>
           </tr>
         </thead>
@@ -1203,6 +1225,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
               {% endfor %}
             </td>
             <td><span style="font-family:var(--font-mono); font-weight:600;">${{ g.price }}</span></td>
+            <td>{{ g.sparkline_svg | safe }}</td>
             <td>
               <button class="x-copy-btn" onclick="copyTweet(this, `{{ g.tweet_text | e }}`)">
                 <span>𝕏</span> COPY POST
@@ -1211,7 +1234,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
           </tr>
           {% endfor %}
           <tr id="gem-gate-banner" style="display:none;">
-            <td colspan="8" style="padding:28px 20px; text-align:center; background:linear-gradient(180deg, rgba(16,22,34,0.6) 0%, rgba(212,175,55,0.08) 100%); border-top:1px dashed var(--border-gold);">
+            <td colspan="9" style="padding:28px 20px; text-align:center; background:linear-gradient(180deg, rgba(16,22,34,0.6) 0%, rgba(212,175,55,0.08) 100%); border-top:1px dashed var(--border-gold);">
               <div style="font-size:24px; margin-bottom:8px;">🔒</div>
               <div style="font-family:var(--font-serif); font-size:16px; font-weight:700; color:var(--gold-light); margin-bottom:4px;">10 ADDITIONAL 10X GEM BREAKOUTS LOCKED</div>
               <div style="font-size:12px; color:var(--text-silver); margin-bottom:16px;">Sign in with Google, Apple, or Email to view full asymmetric trade setups, entry zones, and calculated price targets.</div>
@@ -1362,6 +1385,7 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
             <th>Quantity</th>
             <th>Average Cost</th>
             <th>Current Price</th>
+            <th>Intraday Trend</th>
             <th>Market Value</th>
             <th>Unrealized PnL</th>
           </tr>
@@ -1372,12 +1396,13 @@ _WORKSPACE_TEMPLATE = """<!doctype html>
             <td><span class="asset-code">{{ p.ticker }}</span></td>
             <td>{{ p.quantity }} shs</td>
             <td>${{ p.average_cost }}</td>
-            <td>${{ p.current_price }}</td>
-            <td>${{ p.market_value }}</td>
-            <td class="{{ 'pos' if p.is_pos else 'neg' }}">${{ p.unrealized_pnl }}</td>
+            <td id="pos-price-{{ p.ticker }}">${{ p.current_price }}</td>
+            <td>{{ p.sparkline_svg | safe }}</td>
+            <td id="pos-mv-{{ p.ticker }}">${{ p.market_value }}</td>
+            <td id="pos-pnl-{{ p.ticker }}" class="{{ 'pos' if p.is_pos else 'neg' }}">${{ p.unrealized_pnl }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No open positions currently held in paper account.</td></tr>
+          <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No open positions currently held in paper account.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -1881,6 +1906,7 @@ async function submitTelegram(e) {
 }
 
 // Live Market Ticker Tape & Rate-Limit Polling (every 15s)
+let prevPriceMap = {};
 async function updateLiveTickerTape() {
   try {
     const res = await fetch('/api/v1/market/live_tape');
@@ -1891,7 +1917,13 @@ async function updateLiveTickerTape() {
       if (track) {
         let html = '';
         data.ticker_tape.forEach(t => {
-          html += `<div class="ticker-item"><span class="ticker-sym">${t.symbol}</span><span class="ticker-val">${t.price_str}</span><span class="${t.css_class}">${t.change_str}</span></div>`;
+          const prev = prevPriceMap[t.symbol];
+          let pulseClass = '';
+          if (prev !== undefined && t.price_str !== prev) {
+            pulseClass = t.css_class === 'ticker-up' ? 'tick-up-pulse' : 'tick-down-pulse';
+          }
+          prevPriceMap[t.symbol] = t.price_str;
+          html += `<div class="ticker-item ${pulseClass}"><span class="ticker-sym">${t.symbol}</span><span class="ticker-val">${t.price_str}</span><span class="${t.css_class}">${t.change_str}</span></div>`;
         });
         track.innerHTML = html + html;
       }
@@ -2283,6 +2315,12 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
                 )
                 g_dict = g.to_dict()
                 g_dict["tweet_text"] = t_text
+                try:
+                    from quantizedalert.market.live_feed import generate_sparkline_svg, get_live_feed
+                    feed = get_live_feed()
+                    g_dict["sparkline_svg"] = generate_sparkline_svg(feed.get_sparkline_bars(g.ticker, limit=16))
+                except Exception:
+                    g_dict["sparkline_svg"] = ""
                 gem_candidates.append(g_dict)
         except Exception:
             pass
@@ -2384,6 +2422,12 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
             paper_cash = f"{psum['cash']:,.2f}"
             for pos in psum.get("open_positions", []):
                 u_pnl = pos.get("unrealized_pnl", 0.0)
+                try:
+                    from quantizedalert.market.live_feed import generate_sparkline_svg, get_live_feed
+                    feed = get_live_feed()
+                    spk_svg = generate_sparkline_svg(feed.get_sparkline_bars(pos["ticker"], limit=16))
+                except Exception:
+                    spk_svg = ""
                 paper_positions.append({
                     "ticker": pos["ticker"],
                     "quantity": pos["quantity"],
@@ -2392,6 +2436,7 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
                     "market_value": f"{(pos['quantity'] * pos['current_price']):,.2f}",
                     "unrealized_pnl": f"{u_pnl:+,.2f}",
                     "is_pos": u_pnl >= 0,
+                    "sparkline_svg": spk_svg,
                 })
         except Exception:
             pass
@@ -2842,5 +2887,14 @@ def build_app(platform_cfg: PlatformConfig, store: Store | None = None) -> FastA
         sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
         quotes = feed.get_quotes_batch(sym_list)
         return {"ok": True, "quotes": {k: v.to_dict() for k, v in quotes.items()}}
+
+    @app.get("/api/v1/market/sparkline")
+    def api_market_sparkline(symbol: str = "NVDA", limit: int = 24):
+        from quantizedalert.market.live_feed import generate_sparkline_svg, get_live_feed
+        feed = get_live_feed()
+        sym_clean = symbol.strip().upper()
+        bars = feed.get_sparkline_bars(sym_clean, limit=limit)
+        svg = generate_sparkline_svg(bars)
+        return {"ok": True, "symbol": sym_clean, "points": bars, "svg": svg}
 
     return app

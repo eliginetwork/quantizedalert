@@ -30,6 +30,7 @@ __all__ = [
     "SectorIntelligence",
     "SectorRating",
     "UnifiedMarketDataFeed",
+    "generate_sparkline_svg",
     "get_current_price",
     "get_historical_prices",
     "get_live_feed",

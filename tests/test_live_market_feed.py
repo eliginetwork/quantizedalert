@@ -68,3 +68,33 @@ def test_ticker_tape_formatting():
     assert "▼ -1.50%" in tape[1]["change_str"]
     assert tape[1]["css_class"] == "ticker-down"
 
+
+def test_sparkline_svg_generation():
+    from quantizedalert.market.live_feed import generate_sparkline_svg
+
+    # Flat or empty fallback
+    empty_svg = generate_sparkline_svg([])
+    assert "<svg" in empty_svg
+    assert 'stroke-dasharray="2 2"' in empty_svg
+
+    # Uptrend series (green)
+    up_pts = [10.0, 11.0, 12.5, 14.0]
+    up_svg = generate_sparkline_svg(up_pts)
+    assert "<svg" in up_svg
+    assert "#00E676" in up_svg
+    assert "<polyline" in up_svg or "<path" in up_svg
+
+    # Downtrend series (red)
+    dn_pts = [14.0, 12.0, 10.5, 9.0]
+    dn_svg = generate_sparkline_svg(dn_pts)
+    assert "<svg" in dn_svg
+    assert "#FF3366" in dn_svg
+
+
+def test_get_sparkline_bars():
+    feed = UnifiedMarketDataFeed()
+    feed._spark_cache["TESTSYM:10"] = ([100.0, 102.0, 104.0], time.time())
+    bars = feed.get_sparkline_bars("TESTSYM", limit=10)
+    assert bars == [100.0, 102.0, 104.0]
+
+

@@ -135,6 +135,7 @@ class UnifiedMarketDataFeed:
         self.cache_ttl = cache_ttl
         self.rate_monitor = RateLimitMonitor()
         self._cache: dict[str, tuple[LiveQuote, float]] = {}
+        self._spark_cache: dict[str, tuple[list[float], float]] = {}
         self._cache_lock = threading.Lock()
 
         # Load environment variables if not already set
@@ -487,6 +488,107 @@ class UnifiedMarketDataFeed:
                     "source": "pending",
                 })
         return items
+
+    def get_sparkline_bars(self, symbol: str, limit: int = 24) -> list[float]:
+        """Fetch recent intraday bar close series for a symbol with in-memory caching."""
+        sym_clean = symbol.upper().strip()
+        cache_key = f"{sym_clean}:{limit}"
+        now = time.time()
+        with self._cache_lock:
+            if cache_key in self._spark_cache:
+                bars, ts = self._spark_cache[cache_key]
+                if now - ts < 60.0:  # 60-second TTL
+                    return bars
+
+        bars: list[float] = []
+        # Fast path: Alpaca intraday bars (15Min) for US equities
+        if self.alpaca_key and not (sym_clean.startswith("SH") or sym_clean.startswith("SZ")):
+            try:
+                self.rate_monitor.throttle_if_needed("alpaca")
+                url = f"{self.alpaca_data_url}/stocks/{urllib.parse.quote(sym_clean)}/bars?timeframe=15Min&limit={limit}"
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                        "User-Agent": "QuantizedAlert/2.0",
+                        "Accept": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=4.0) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    self.rate_monitor.record_request("alpaca", success=True)
+                    raw_bars = data.get("bars") or []
+                    for b in raw_bars:
+                        if b.get("c"):
+                            bars.append(round(float(b["c"]), 2))
+            except Exception as e:
+                self.rate_monitor.record_request("alpaca", success=False)
+                logger.debug("Alpaca bars fetch failed for %s: %s", sym_clean, e)
+
+        # Fallback to yfinance if needed
+        if not bars:
+            try:
+                from quantizedalert.market.yfinance_client import get_historical_prices
+                df = get_historical_prices(sym_clean, period="5d", interval="15m")
+                if df is not None and not df.empty and "Close" in df.columns:
+                    bars = [round(float(c), 2) for c in df["Close"].dropna().tail(limit).tolist()]
+            except Exception as e:
+                logger.debug("YFinance sparkline fallback failed for %s: %s", sym_clean, e)
+
+        # Synthetic fallback if still empty
+        if not bars:
+            q = self.get_quote(sym_clean)
+            if q and q.price:
+                bars = [q.prev_close or q.price, q.price]
+
+        with self._cache_lock:
+            self._spark_cache[cache_key] = (bars, now)
+
+        return bars
+
+
+def generate_sparkline_svg(points: list[float], width: int = 90, height: int = 24, stroke_width: float = 1.5) -> str:
+    """Generate an inline responsive SVG sparkline with gradient fill and terminal luxury accents."""
+    if not points or len(points) < 2:
+        return (
+            f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" class="sparkline-svg">'
+            f'<line x1="2" y1="{height/2:.1f}" x2="{width-2}" y2="{height/2:.1f}" stroke="#718096" stroke-width="1" stroke-dasharray="2 2"/>'
+            f'</svg>'
+        )
+
+    pad = 2.0
+    min_v = min(points)
+    max_v = max(points)
+    diff = max_v - min_v if max_v != min_v else 1.0
+
+    n = len(points)
+    coords = []
+    for i, p in enumerate(points):
+        x = pad + (i / (n - 1)) * (width - 2 * pad)
+        y = (height - pad) - ((p - min_v) / diff) * (height - 2 * pad)
+        coords.append((round(x, 1), round(y, 1)))
+
+    path_d = "M " + " L ".join(f"{x},{y}" for x, y in coords)
+    area_d = f"{path_d} L {coords[-1][0]},{height} L {coords[0][0]},{height} Z"
+
+    is_up = points[-1] >= points[0]
+    color = "#00E676" if is_up else "#FF3366"
+    import random
+    uid = random.randint(10000, 99999)
+    grad_id = f"spk-{uid}"
+
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" class="sparkline-svg" style="overflow:visible; vertical-align:middle;">'
+        f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="{color}" stop-opacity="0.28"/>'
+        f'<stop offset="100%" stop-color="{color}" stop-opacity="0.0"/>'
+        f'</linearGradient></defs>'
+        f'<path d="{area_d}" fill="url(#{grad_id})" />'
+        f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{stroke_width}" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<circle cx="{coords[-1][0]}" cy="{coords[-1][1]}" r="2" fill="{color}" />'
+        f'</svg>'
+    )
 
 
 class LivePriceDaemon:
